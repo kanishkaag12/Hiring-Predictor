@@ -1,4 +1,4 @@
-import { Layout } from "@/components";
+import { Layout } from "@/components/index";
 import { MOCK_USER } from "@/lib/mockData";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,5 +1,5 @@
 import { useRoute } from "wouter";
-import { Layout, ProbabilityGauge, PeerClusterMap } from "@/components";
+import { Layout, ProbabilityGauge, PeerClusterMap } from "@/components/index";
 import { MOCK_JOBS, PEER_CLUSTERS, RECOMMENDATIONS } from "@/lib/mockData";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

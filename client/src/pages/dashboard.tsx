@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Layout, HiringTrendChart, JobCard } from "@/components";
+import { Layout, HiringTrendChart, JobCard } from "@/components/index";
 import { MOCK_JOBS, HIRING_TRENDS, MOCK_USER } from "@/lib/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, Users, Target } from "lucide-react";

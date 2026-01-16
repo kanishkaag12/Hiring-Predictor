@@ -1,4 +1,4 @@
-import { Layout, JobCard } from "@/components";
+import { Layout, JobCard } from "@/components/index";
 import { MOCK_JOBS } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
