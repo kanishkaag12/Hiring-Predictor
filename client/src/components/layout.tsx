@@ -22,7 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold font-display text-lg">H</span>
               </div>
-              <span className="font-display font-bold text-xl tracking-tight text-foreground">HireCast</span>
+              <span className="font-display font-bold text-xl tracking-tight text-foreground">HirePulse</span>
             </div>
           </Link>
         </div>
@@ -67,7 +67,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold font-display text-lg">H</span>
             </div>
-            <span className="font-display font-bold text-xl tracking-tight text-foreground">HireCast</span>
+            <span className="font-display font-bold text-xl tracking-tight text-foreground">HirePulse</span>
           </div>
         </header>
         <div className="min-h-[calc(100vh-4rem)] md:min-h-screen">
