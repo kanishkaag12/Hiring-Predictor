@@ -3,8 +3,29 @@ import { MOCK_JOBS } from "@/lib/mockData";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+
 
 export default function Jobs() {
+  const [jobs, setJobs] = useState(MOCK_JOBS);
+
+  useEffect(() => {
+    async function loadRealJobs() {
+      try {
+        const res = await fetch("/api/jobs/real");
+        const data = await res.json();
+
+        if (Array.isArray(data) && data.length > 0) {
+          setJobs(data);
+        }
+      } catch (error) {
+        console.error("Failed to load real jobs, using mock jobs", error);
+      }
+    }
+
+    loadRealJobs();
+  }, []);
+
   return (
     <Layout>
       <div className="p-6 md:p-12 max-w-7xl mx-auto space-y-8">
@@ -17,7 +38,7 @@ export default function Jobs() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MOCK_JOBS.map((job, i) => (
+            {jobs.map((job, i) => (
                 <motion.div
                   key={job.id}
                   initial={{ opacity: 0, scale: 0.95 }}
