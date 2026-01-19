@@ -8,6 +8,7 @@ import Dashboard from "@/pages/dashboard";
 import JobDetails from "@/pages/job-details";
 import Profile from "@/pages/profile";
 import Jobs from "@/pages/jobs";
+import Internships from "@/pages/internships";
 import LandingPage from "@/pages/landing";
 
 function Router() {
@@ -17,8 +18,9 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/jobs" component={Jobs} />
       <Route path="/jobs/:id" component={JobDetails} />
+      <Route path="/internships" component={Internships} />
       <Route path="/profile" component={Profile} />
-      <Route path="/applications" component={Dashboard} /> 
+      <Route path="/applications" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );

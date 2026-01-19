@@ -14,10 +14,25 @@ export async function registerRoutes(
     res.json(sources);
   });
 
+
+
   // ✅ ALL JOBS
-  app.get("/api/jobs", async (_req, res) => {
-    const jobs = await fetchJobs();
-    res.json(jobs);
+  app.get("/api/jobs", async (req, res) => {
+    try {
+      const filters = {
+        type: req.query.type as any,
+        search: req.query.search as string,
+        level: req.query.level as string,
+        companyType: req.query.companyType as string,
+        companySize: req.query.companySize as string,
+        workType: req.query.workType as any
+      };
+      const jobs = await fetchJobs(filters);
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error finding jobs:", error);
+      res.status(500).json({ error: "Failed to fetch jobs" });
+    }
   });
 
   // ✅ SINGLE JOB
