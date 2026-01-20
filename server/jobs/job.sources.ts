@@ -6,10 +6,9 @@ export interface BackendJobSource {
 }
 
 export const BACKEND_JOB_SOURCES: BackendJobSource[] = [
-  { id: "adzuna", enabled: false },
-  { id: "jooble", enabled: false },
   { id: "remotive", enabled: true },
-  { id: "arbeitnow", enabled: false },
+  { id: "greenhouse", enabled: true },
+  { id: "lever", enabled: true },
 ];
 
 export function getEnabledBackendSources() {

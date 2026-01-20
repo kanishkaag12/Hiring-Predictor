@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, User, Search, Settings, LogOut, Home } from "lucide-react";
+import { LayoutDashboard, Briefcase, User, Search, Settings, LogOut, Home, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -8,6 +8,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
     { icon: Search, label: "Find Jobs", href: "/jobs" },
+    { icon: Home, label: "Find Internships", href: "/internships" },
     { icon: Briefcase, label: "My Applications", href: "/applications" },
     { icon: User, label: "Profile", href: "/profile" },
   ];
@@ -34,8 +35,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Link key={item.href} href={item.href}>
                 <a className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}>
                   <item.icon className={cn("h-4 w-4", isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
@@ -63,7 +64,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative">
         <header className="sticky top-0 z-20 h-16 border-b border-border/40 bg-background/80 backdrop-blur-md px-6 flex items-center justify-between md:hidden">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold font-display text-lg">H</span>
             </div>
