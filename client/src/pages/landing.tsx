@@ -1,296 +1,695 @@
-import { motion } from "framer-motion";
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { 
-  ArrowRight, 
-  BarChart2, 
-  ShieldCheck, 
-  Users, 
-  CheckCircle2, 
-  AlertCircle, 
-  Target, 
-  TrendingUp,
-  Search,
-  Zap,
-  Briefcase,
-  GraduationCap
-} from "lucide-react";
-import heroImage from "@assets/generated_images/futuristic_data_hiring_network_visualization_with_glowing_nodes.png";
+import { useEffect, useRef } from 'react';
+import { useLocation } from "wouter";
+import './landing.css';
 
 export default function LandingPage() {
+  const [, setLocation] = useLocation();
+  const heroRef = useRef<HTMLElement>(null);
+  const pulseLinesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Type insight text with dramatic reveal
+    setTimeout(() => {
+      const insight1 = document.getElementById('insight-text-1');
+      if (insight1) typeWriter(insight1, "You're not getting rejected.", 30);
+      document.getElementById('insight1')?.classList.add('active');
+    }, 800);
+
+    setTimeout(() => {
+      const insight2 = document.getElementById('insight-text-2');
+      if (insight2) typeWriter(insight2, "You're applying blind.", 30);
+      document.getElementById('insight2')?.classList.add('active');
+    }, 2000);
+
+    // Transition to headline
+    setTimeout(() => {
+      const headline = document.getElementById('headline-text');
+      if (headline) typeWriter(headline, "HirePulse shows your shortlisting chances before you apply.", 20);
+    }, 3500);
+
+    // Animate dashboard panels
+    setTimeout(() => {
+      animateDashboardPanels();
+    }, 2500);
+
+    // Animate data signals
+    setTimeout(() => {
+      animateSignals();
+    }, 4000);
+
+    // Animate floating data points
+    setTimeout(() => {
+      animateFloatingData();
+    }, 4500);
+
+    // Scroll animations
+    const cleanupScroll = setupScrollAnimations();
+
+    // Progressive disclosure on scroll
+    setupProgressiveDisclosure();
+
+    // Parallax effect
+    const handleScroll = () => {
+      const scrolled = window.pageYOffset;
+      if (heroRef.current && scrolled < window.innerHeight) {
+        heroRef.current.style.transform = `translateY(${scrolled * 0.5}px)`;
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+
+    // Mouse interaction
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!heroRef.current) return;
+
+      const rect = heroRef.current.getBoundingClientRect();
+      const mouseX = ((e.clientX - rect.left) / rect.width) * 100;
+      const mouseY = ((e.clientY - rect.top) / rect.height) * 100;
+
+      if (pulseLinesRef.current) {
+        pulseLinesRef.current.style.background = `
+            radial-gradient(circle at ${mouseX}% ${mouseY}%, rgba(0, 255, 136, 0.2) 0%, transparent 50%),
+            radial-gradient(circle at ${100 - mouseX}% ${100 - mouseY}%, rgba(0, 212, 255, 0.2) 0%, transparent 50%)
+        `;
+      }
+
+      // Mouse interaction with data points
+      const dataPoints = document.querySelectorAll('.data-point');
+      dataPoints.forEach((point) => {
+        const pointElement = point as HTMLElement;
+        const pointRect = pointElement.getBoundingClientRect();
+        const x = e.clientX - pointRect.left - pointRect.width / 2;
+        const y = e.clientY - pointRect.top - pointRect.height / 2;
+        const distance = Math.sqrt(x * x + y * y);
+
+        if (distance < 100) {
+          const scale = 1 + (100 - distance) / 200;
+          pointElement.style.transform = `scale(${scale})`;
+          pointElement.style.zIndex = '10';
+        } else {
+          pointElement.style.transform = 'scale(1)';
+          pointElement.style.zIndex = '1'; // Note: inline styles might be overridden by CSS hover states if not careful, but this matches original JS logic
+        }
+      });
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+
+    // Real-time data pulse effect
+    const pulseInterval = setInterval(() => {
+      const signals = document.querySelectorAll('.signal');
+      signals.forEach((signal) => {
+        const signalEl = signal as HTMLElement;
+        signalEl.style.transform = 'scale(1.02)';
+        setTimeout(() => {
+          signalEl.style.transform = 'scale(1)';
+        }, 200);
+      });
+    }, 8000);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('mousemove', handleMouseMove);
+      clearInterval(pulseInterval);
+      cleanupScroll();
+    };
+  }, []);
+
+  const revealChances = () => {
+    document.getElementById('how-it-works')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  };
+
+  const scrollToHow = () => {
+    document.getElementById('how-it-works')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  };
+
+  const handleLogin = () => {
+    setLocation("/dashboard");
+  };
+
+  const handleSignup = () => {
+    setLocation("/dashboard");
+  };
+
   return (
-    <div className="bg-background min-h-screen font-sans selection:bg-primary/10">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold font-display text-lg">H</span>
-            </div>
-            <span className="font-display font-bold text-xl tracking-tight text-foreground">HirePulse</span>
+    <div className="landing-page">
+      {/* Header Navigation */}
+      <header className="main-header">
+        <div className="header-container">
+          <div className="logo">
+            <span className="logo-text">HirePulse</span>
           </div>
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#problem" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">The Challenge</a>
-            <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How it Works</a>
-            <a href="#audience" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">For You</a>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" className="hidden md:inline-flex">Log In</Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button className="bg-primary text-primary-foreground shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all">
-                Get Started
-              </Button>
-            </Link>
-          </div>
+          <nav className="header-nav">
+            <button className="btn-login" onClick={handleLogin}>Login</button>
+            <button className="btn-signup" onClick={handleSignup}>Sign Up</button>
+          </nav>
         </div>
-      </nav>
+      </header>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-48 md:pb-40 overflow-hidden border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="max-w-4xl"
-          >
-            <h1 className="text-5xl md:text-7xl font-display font-bold text-foreground leading-[1.05] mb-8 tracking-tight">
-              Know your chances <br />
-              <span className="text-muted-foreground/60">before you hit apply.</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-2xl leading-relaxed">
-              HirePulse uses real-time hiring trends and peer data to help students, freshers, and job-seekers understand exactly where they stand in the applicant pool.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-5">
-              <Link href="/dashboard">
-                <Button size="lg" className="h-14 px-10 text-lg bg-primary text-primary-foreground shadow-xl shadow-primary/10 hover:shadow-primary/20 transition-all group rounded-full">
-                  Analyze My Chances <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <a href="#how-it-works">
-                <Button size="lg" variant="outline" className="h-14 px-10 text-lg rounded-full">
-                  How it works
-                </Button>
-              </a>
+      <section className="hero" id="hero" ref={heroRef}>
+        <div className="hero-background">
+          <div className="data-grid"></div>
+          <div className="pulse-lines" ref={pulseLinesRef}></div>
+          <div className="scan-beams"></div>
+          <div className="data-streams"></div>
+        </div>
+
+        {/* Live Data Dashboard Overlay */}
+        <div className="dashboard-overlay">
+          <div className="dashboard-panel top-left">
+            <div className="panel-label">[LIVE ANALYSIS]</div>
+            <div className="panel-value" data-value="2847">0</div>
+            <div className="panel-desc">Jobs Analyzed Today</div>
+          </div>
+          <div className="dashboard-panel top-right">
+            <div className="panel-label">[SUCCESS RATE]</div>
+            <div className="panel-value" data-value="73">0</div>
+            <div className="panel-desc">Avg. Shortlist Probability</div>
+          </div>
+        </div>
+
+        <div className="hero-content">
+          <div className="insight-container">
+            <div className="insight-line" id="insight1">
+              <span className="insight-prefix">[SYSTEM INSIGHT]</span>
+              <span className="insight-text" id="insight-text-1"></span>
             </div>
-          </motion.div>
+            <div className="insight-line" id="insight2">
+              <span className="insight-text" id="insight-text-2"></span>
+            </div>
+          </div>
+
+          <div className="hero-headline" id="headline">
+            <h1 id="headline-text"></h1>
+          </div>
+
+          <div className="hero-cta" id="cta">
+            <button className="cta-primary" onClick={revealChances}>Reveal My Chances</button>
+            <button className="cta-secondary" onClick={scrollToHow}>See How This Works</button>
+          </div>
         </div>
-        <div className="absolute right-0 top-0 w-1/2 h-full hidden lg:block opacity-20 pointer-events-none">
-             <img src={heroImage} alt="" className="w-full h-full object-cover grayscale" />
+
+        {/* Animated Data Signals - Enhanced */}
+        <div className="data-signals">
+          <div className="signal signal-1">
+            <div className="signal-header">
+              <div className="signal-label">Match Score</div>
+              <div className="signal-status">LIVE</div>
+            </div>
+            <div className="signal-value" data-target="87">0</div>
+            <div className="signal-bar">
+              <div className="signal-fill" data-width="87"></div>
+            </div>
+            <div className="signal-indicator">
+              <span className="indicator-dot"></span>
+              <span className="indicator-text">High Match</span>
+            </div>
+          </div>
+          <div className="signal signal-2">
+            <div className="signal-header">
+              <div className="signal-label">Competition Level</div>
+              <div className="signal-status">LIVE</div>
+            </div>
+            <div className="signal-value" data-target="234">0</div>
+            <div className="signal-bar">
+              <div className="signal-fill" data-width="65"></div>
+            </div>
+            <div className="signal-indicator">
+              <span className="indicator-dot"></span>
+              <span className="indicator-text">Moderate</span>
+            </div>
+          </div>
+          <div className="signal signal-3">
+            <div className="signal-header">
+              <div className="signal-label">Shortlist Probability</div>
+              <div className="signal-status">LIVE</div>
+            </div>
+            <div className="signal-value" data-target="73">0</div>
+            <div className="signal-bar">
+              <div className="signal-fill" data-width="73"></div>
+            </div>
+            <div className="signal-indicator">
+              <span className="indicator-dot"></span>
+              <span className="indicator-text">Likely</span>
+            </div>
+          </div>
         </div>
+
+        {/* Floating Data Points - Enhanced */}
+        <div className="floating-data">
+          <div className="data-point pulse-1" style={{ top: '20%', left: '8%' }}>
+            <div className="point-value" data-target="92">0</div>
+            <div className="point-label">Match</div>
+          </div>
+          <div className="data-point pulse-2" style={{ top: '30%', right: '8%' }}>
+            <div className="point-value" data-target="1247">0</div>
+            <div className="point-label">Apps</div>
+          </div>
+          <div className="data-point pulse-3" style={{ bottom: '25%', left: '15%' }}>
+            <div className="point-value" data-target="68">0</div>
+            <div className="point-label">Chance</div>
+          </div>
+          <div className="data-point pulse-4" style={{ top: '55%', right: '8%' }}>
+            <div className="point-value" data-target="78">0</div>
+            <div className="point-label">ATS Pass</div>
+          </div>
+        </div>
+
+        {/* Data Connection Lines */}
+        <svg className="connection-lines" width="100%" height="100%">
+          <defs>
+            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style={{ stopColor: '#00ff88', stopOpacity: 0 }} />
+              <stop offset="50%" style={{ stopColor: '#00ff88', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#00ff88', stopOpacity: 0 }} />
+            </linearGradient>
+          </defs>
+          <line className="conn-line line-1" x1="10%" y1="15%" x2="50%" y2="50%" />
+          <line className="conn-line line-2" x1="90%" y1="25%" x2="50%" y2="50%" />
+          <line className="conn-line line-3" x1="20%" y1="80%" x2="50%" y2="50%" />
+        </svg>
       </section>
 
-      {/* The Problem */}
-      <section id="problem" className="py-24 bg-card/10">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-6">The hidden reality of job hunting.</h2>
-            <p className="text-xl text-muted-foreground">Most applications fail because candidates are operating in the dark. We're here to turn the lights on.</p>
+      {/* How It Works Section */}
+      <section className="how-it-works" id="how-it-works">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[INTELLIGENCE ENGINE]</span>
+            <h2>The Data Reveals What Applications Hide</h2>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            {/* Students & Freshers */}
-            <div className="bg-background border border-border/60 p-8 rounded-3xl shadow-sm">
-              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
-                <GraduationCap className="h-6 w-6" />
+
+          <div className="steps">
+            <div className="step" data-step="1">
+              <div className="step-number">01</div>
+              <div className="step-content">
+                <span className="step-tag">[PROFILE SCAN]</span>
+                <h3>We Read Between The Lines</h3>
+                <p>Your resume meets our AI. We extract skills, experience depth, and hidden signals that ATS systems actually look for.</p>
+                <div className="step-metric">
+                  <span className="metric-value">2.3M</span>
+                  <span className="metric-label">Profiles Analyzed</span>
+                </div>
               </div>
-              <h3 className="text-2xl font-bold mb-6">For Students & Freshers</h3>
-              <ul className="space-y-6">
-                <li className="flex gap-4">
-                  <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-1" />
-                  <div>
-                    <p className="font-semibold">Blind Applications</p>
-                    <p className="text-muted-foreground text-sm mt-1">Applying to dozens of internships without knowing if your profile matches what successful candidates have.</p>
+              <div className="step-visual">
+                <div className="visual-box profile-scan-box">
+                  <div className="scan-animation">
+                    <div className="scan-line"></div>
+                    <div className="scan-line scan-line-2"></div>
                   </div>
-                </li>
-                <li className="flex gap-4">
-                  <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-1" />
-                  <div>
-                    <p className="font-semibold">The Feedback Void</p>
-                    <p className="text-muted-foreground text-sm mt-1">Receiving automated rejections months later with zero insight into why you weren't shortlisted.</p>
+                  <div className="profile-layers">
+                    <div className="layer layer-1"></div>
+                    <div className="layer layer-2"></div>
+                    <div className="layer layer-3"></div>
                   </div>
-                </li>
-              </ul>
-            </div>
-
-            {/* General Job Seekers */}
-            <div className="bg-background border border-border/60 p-8 rounded-3xl shadow-sm">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 mb-6">
-                <Briefcase className="h-6 w-6" />
+                  <div className="scan-indicators">
+                    <div className="indicator indicator-1"></div>
+                    <div className="indicator indicator-2"></div>
+                    <div className="indicator indicator-3"></div>
+                    <div className="indicator indicator-4"></div>
+                  </div>
+                  <div className="scan-progress">
+                    <div className="progress-bar"></div>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-2xl font-bold mb-6">For Experienced Seekers</h3>
-              <ul className="space-y-6">
-                <li className="flex gap-4">
-                  <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-1" />
-                  <div>
-                    <p className="font-semibold">Wasted Effort on Ghost Jobs</p>
-                    <p className="text-muted-foreground text-sm mt-1">Investing hours in applications for companies that have quietly frozen hiring or already filled the role.</p>
-                  </div>
-                </li>
-                <li className="flex gap-4">
-                  <AlertCircle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-1" />
-                  <div>
-                    <p className="font-semibold">No Peer Comparison</p>
-                    <p className="text-muted-foreground text-sm mt-1">Not knowing how your skills and salary expectations stack up against the actual applicant pool.</p>
-                  </div>
-                </li>
-              </ul>
             </div>
-          </div>
 
-          <div className="mt-16 text-center max-w-2xl mx-auto p-8 rounded-3xl bg-primary text-primary-foreground shadow-2xl shadow-primary/20">
-            <h4 className="text-2xl font-bold mb-4">HirePulse replaces uncertainty with intelligence.</h4>
-            <p className="opacity-90">By surfacing hiring trends and peer clusters, we give you the data needed to apply where you actually have a shot at winning.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Why HirePulse */}
-      <section className="py-24">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-8">Why HirePulse exists.</h2>
-            <p className="text-xl text-muted-foreground leading-relaxed">
-                We believe that job seeking shouldn't be a game of chance. By analyzing public hiring signals and historical peer outcomes, we provide a layer of transparency that helps you make informed decisions about where to invest your career.
-            </p>
-        </div>
-      </section>
-
-      {/* How it Works */}
-      <section id="how-it-works" className="py-24 border-y border-border/40">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-20">
-            <h2 className="text-3xl md:text-5xl font-display font-bold">A systematic approach.</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-            {[
-              {
-                step: "01",
-                title: "Data Ingestion",
-                desc: "We monitor thousands of job boards and company career pages for subtle hiring signals."
-              },
-              {
-                step: "02",
-                title: "Profile Analysis",
-                desc: "Our engine maps your skills and experience against successful historical candidates."
-              },
-              {
-                step: "03",
-                title: "Probability Engine",
-                desc: "Calculate a conservative estimate of your shortlist probability based on peer clusters."
-              },
-              {
-                step: "04",
-                title: "Actionable Insights",
-                desc: "Receive specific recommendations on skill gaps or networking opportunities."
-              }
-            ].map((item, i) => (
-              <div key={i} className="relative">
-                <span className="text-6xl font-display font-bold text-primary/5 absolute -top-10 left-0 leading-none">{item.step}</span>
-                <h3 className="text-xl font-bold mb-4 relative z-10">{item.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">{item.desc}</p>
+            <div className="step" data-step="2">
+              <div className="step-number">02</div>
+              <div className="step-content">
+                <span className="step-tag">[PATTERN ANALYSIS]</span>
+                <h3>We See The Competition</h3>
+                <p>Real-time analysis of applicant pools, hiring patterns, and success rates. We know who gets shortlisted and why.</p>
+                <div className="step-metric">
+                  <span className="metric-value">847k</span>
+                  <span className="metric-label">Job Outcomes Tracked</span>
+                </div>
               </div>
-            ))}
+              <div className="step-visual">
+                <div className="visual-box pattern-analysis-box">
+                  <svg className="network-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style={{ stopColor: '#00d9ff', stopOpacity: 1 }} />
+                        <stop offset="100%" style={{ stopColor: '#7c3aed', stopOpacity: 1 }} />
+                      </linearGradient>
+                      <linearGradient id="lineGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{ stopColor: '#00d9ff', stopOpacity: 0.3 }} />
+                        <stop offset="50%" style={{ stopColor: '#7c3aed', stopOpacity: 0.8 }} />
+                        <stop offset="100%" style={{ stopColor: '#00d9ff', stopOpacity: 0.3 }} />
+                      </linearGradient>
+                    </defs>
+                    <line className="svg-line line-1" x1="50" y1="50" x2="150" y2="80" />
+                    <line className="svg-line line-2" x1="100" y1="100" x2="150" y2="150" />
+                    <line className="svg-line line-3" x1="50" y1="150" x2="100" y2="100" />
+                    <line className="svg-line line-4" x1="150" y1="50" x2="100" y2="100" />
+                    <circle className="svg-node node-1" cx="50" cy="50" r="8" />
+                    <circle className="svg-node node-2" cx="150" cy="80" r="8" />
+                    <circle className="svg-node node-3" cx="100" cy="100" r="10" />
+                    <circle className="svg-node node-4" cx="150" cy="150" r="8" />
+                    <circle className="svg-node node-5" cx="50" cy="150" r="8" />
+                  </svg>
+                  <div className="pattern-pulse"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="step" data-step="3">
+              <div className="step-number">03</div>
+              <div className="step-content">
+                <span className="step-tag">[PROBABILITY CALCULATION]</span>
+                <h3>You Get The Truth</h3>
+                <p>Not motivation. Not hope. Just data. Your exact shortlisting probability, calculated from real outcomes.</p>
+                <div className="step-metric">
+                  <span className="metric-value">94%</span>
+                  <span className="metric-label">Prediction Accuracy</span>
+                </div>
+              </div>
+              <div className="step-visual">
+                <div className="visual-box">
+                  <div className="probability-display">
+                    <div className="prob-value" data-target="73">0</div>
+                    <div className="prob-label">Shortlist Chance</div>
+                    <div className="prob-breakdown">
+                      <div className="breakdown-item">
+                        <span className="breakdown-label">ATS Pass</span>
+                        <span className="breakdown-value">87%</span>
+                      </div>
+                      <div className="breakdown-item">
+                        <span className="breakdown-label">HR Review</span>
+                        <span className="breakdown-value">73%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* For Students vs Seekers */}
-      <section id="audience" className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="p-10 rounded-3xl bg-primary/5 border border-primary/10">
-                    <GraduationCap className="h-10 w-10 text-primary mb-6" />
-                    <h3 className="text-2xl font-bold mb-4">For Students & Freshers</h3>
-                    <ul className="space-y-4 text-muted-foreground">
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" /> Navigate internship cycles with confidence</li>
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" /> Identify which skills are actually getting peers hired</li>
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" /> Compare your profile with top university cohorts</li>
-                    </ul>
-                </div>
-                <div className="p-10 rounded-3xl bg-indigo-500/5 border border-indigo-500/10">
-                    <Briefcase className="h-10 w-10 text-indigo-500 mb-6" />
-                    <h3 className="text-2xl font-bold mb-4">For Experienced Seekers</h3>
-                    <ul className="space-y-4 text-muted-foreground">
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-indigo-500 flex-shrink-0 mt-0.5" /> Detect hiring slowdowns before they are announced</li>
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-indigo-500 flex-shrink-0 mt-0.5" /> Map your career trajectory against market demand</li>
-                        <li className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 text-indigo-500 flex-shrink-0 mt-0.5" /> Receive salary benchmarks based on role probability</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-      </section>
-
-      {/* Comparison Section */}
-      <section className="py-24 bg-card/20 border-y border-border/40">
-        <div className="max-w-5xl mx-auto px-6">
-            <h2 className="text-3xl font-display font-bold mb-12 text-center">Not another resume tool.</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-4">
-                    <h4 className="font-bold text-muted-foreground uppercase text-xs tracking-widest">Generic AI</h4>
-                    <p className="text-sm text-muted-foreground">Focuses on generating boilerplate text and keywords to trick simple ATS systems.</p>
-                </div>
-                <div className="space-y-4">
-                    <h4 className="font-bold text-muted-foreground uppercase text-xs tracking-widest">Resume Optimizers</h4>
-                    <p className="text-sm text-muted-foreground">Help you format your history, but ignore the market signals around you.</p>
-                </div>
-                <div className="space-y-4 border-l-2 border-primary pl-8">
-                    <h4 className="font-bold text-primary uppercase text-xs tracking-widest">HirePulse</h4>
-                    <p className="text-sm text-foreground font-medium">Connects your unique profile to real-world market intelligence and historical hiring outcomes.</p>
-                </div>
-            </div>
-        </div>
-      </section>
-
-      {/* Trust & Credibility */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/50 text-muted-foreground text-sm font-medium mb-10 border border-border/60">
-                Data updated every 4 hours
-            </div>
-            <h2 className="text-3xl font-display font-bold mb-12">Built on verified career signals.</h2>
-            <div className="flex flex-wrap justify-center gap-12 opacity-40 grayscale filter hover:grayscale-0 transition-all duration-500">
-                <span className="text-xl font-bold font-display tracking-tighter">TECHFLOW</span>
-                <span className="text-xl font-bold font-display tracking-tighter">DATASTREAM</span>
-                <span className="text-xl font-bold font-display tracking-tighter">NEBULAAI</span>
-                <span className="text-xl font-bold font-display tracking-tighter">FINTECH+</span>
-            </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-24 border-t border-border/40">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-4xl md:text-5xl font-display font-bold mb-8">Ready to navigate smarter?</h2>
-          <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
-            Join thousands of candidates who are using data to drive their career search.
-          </p>
-          <Link href="/dashboard">
-            <Button size="lg" className="h-16 px-12 text-xl bg-primary text-primary-foreground shadow-2xl shadow-primary/10 hover:shadow-primary/20 transition-all rounded-full">
-              Analyze My Profile <ArrowRight className="ml-2 h-6 w-6" />
-            </Button>
-          </Link>
-          <p className="mt-8 text-sm text-muted-foreground">Free to start. No credit card required.</p>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-12 bg-card/30 border-t border-border/40">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold font-display text-xs">H</span>
-            </div>
-            <span className="font-display font-bold text-lg tracking-tight text-foreground">HirePulse</span>
+      {/* Insight Reveal Section */}
+      <section className="insight-reveal">
+        <div className="container">
+          <div className="reveal-header">
+            <span className="reveal-tag">[DATA INSIGHTS]</span>
+            <h2>The Hidden Truths About Job Applications</h2>
           </div>
-          <div className="flex gap-8 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground">Privacy</a>
-              <a href="#" className="hover:text-foreground">Terms</a>
-              <a href="#" className="hover:text-foreground">Methodology</a>
+          <div className="reveal-grid">
+            <div className="reveal-card">
+              <div className="card-header">
+                <span className="card-tag">[TRUTH #1]</span>
+                <h3>Most applications never reach human eyes</h3>
+              </div>
+              <div className="card-stats">
+                <div className="stat">
+                  <div className="stat-value" data-target="78">0</div>
+                  <div className="stat-label">Filtered by ATS</div>
+                </div>
+                <div className="stat-detail">
+                  <p>Your resume gets scanned, not read. We show you exactly what passes through.</p>
+                </div>
+              </div>
+              <div className="card-visual">
+                <div className="visual-bar">
+                  <div className="bar-fill" data-width="78"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="reveal-card">
+              <div className="card-header">
+                <span className="card-tag">[TRUTH #2]</span>
+                <h3>Your competition is invisible</h3>
+              </div>
+              <div className="card-stats">
+                <div className="stat">
+                  <div className="stat-value" data-target="1247">0</div>
+                  <div className="stat-label">Average applicants per role</div>
+                </div>
+                <div className="stat-detail">
+                  <p>You're competing against hundreds. We show you where you rank.</p>
+                </div>
+              </div>
+              <div className="card-visual">
+                <div className="competition-visual">
+                  <div className="comp-bar" style={{ height: '45%' }}></div>
+                  <div className="comp-bar" style={{ height: '60%' }}></div>
+                  <div className="comp-bar active" style={{ height: '73%' }}></div>
+                  <div className="comp-bar" style={{ height: '35%' }}></div>
+                  <div className="comp-bar" style={{ height: '52%' }}></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="reveal-card">
+              <div className="card-header">
+                <span className="card-tag">[TRUTH #3]</span>
+                <h3>Timing matters more than you think</h3>
+              </div>
+              <div className="card-stats">
+                <div className="stat">
+                  <div className="stat-value" data-target="3.2">0</div>
+                  <div className="stat-label">Better odds if applied early</div>
+                </div>
+                <div className="stat-detail">
+                  <p>First 48 hours = 3.2x better shortlist rate. We tell you when to apply.</p>
+                </div>
+              </div>
+              <div className="card-visual">
+                <div className="timeline-visual">
+                  <div className="timeline-point active" style={{ left: '10%' }}>
+                    <div className="point-value">3.2x</div>
+                  </div>
+                  <div className="timeline-point" style={{ left: '50%' }}>
+                    <div className="point-value">1.1x</div>
+                  </div>
+                  <div className="timeline-point" style={{ left: '90%' }}>
+                    <div className="point-value">0.4x</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </footer>
+      </section>
+
+      {/* CTA Section */}
+      <section className="final-cta">
+        <div className="container">
+          <div className="cta-content">
+            <span className="cta-tag">[READY TO UNLOCK INSIGHT?]</span>
+            <h2>Stop applying blind.</h2>
+            <p>Know your real chances before you invest your time.</p>
+            <div className="cta-stats">
+              <div className="cta-stat">
+                <div className="cta-stat-value">2.3M+</div>
+                <div className="cta-stat-label">Profiles Analyzed</div>
+              </div>
+              <div className="cta-stat">
+                <div className="cta-stat-value">94%</div>
+                <div className="cta-stat-label">Prediction Accuracy</div>
+              </div>
+              <div className="cta-stat">
+                <div className="cta-stat-value">847k+</div>
+                <div className="cta-stat-label">Outcomes Tracked</div>
+              </div>
+            </div>
+            <button className="cta-primary large" onClick={revealChances}>Reveal My Chances</button>
+          </div>
+        </div>
+      </section>
     </div>
   );
+}
+
+// ---------------- Helper Functions (Ported from script.js) ----------------
+
+function animateDashboardPanels() {
+  const panels = document.querySelectorAll('.panel-value');
+  panels.forEach(panel => {
+    const target = parseInt(panel.getAttribute('data-value') || '0');
+    // For dashboard panels, specific logic if needed
+    animateValue(panel as HTMLElement, 0, target, 2000, true);
+  });
+}
+
+function animateSignals() {
+  const signals = document.querySelectorAll('.signal-value');
+  const fills = document.querySelectorAll('.signal-fill');
+
+  signals.forEach((signal, index) => {
+    const target = parseInt(signal.getAttribute('data-target') || '0');
+    setTimeout(() => {
+      animateValue(signal as HTMLElement, 0, target, 2000);
+    }, index * 200);
+  });
+
+  fills.forEach((fill, index) => {
+    const el = fill as HTMLElement;
+    const width = el.getAttribute('data-width');
+    setTimeout(() => {
+      el.style.setProperty('--width', width + '%');
+      el.classList.add('animate');
+    }, index * 200 + 100);
+  });
+}
+
+function animateFloatingData() {
+  const points = document.querySelectorAll('.data-point .point-value');
+  points.forEach((point, index) => {
+    const target = parseInt(point.getAttribute('data-target') || '0');
+    setTimeout(() => {
+      if (target > 100) {
+        // Format large numbers
+        animateValue(point as HTMLElement, 0, target, 2000, false, (val) => {
+          if (val >= 1000) {
+            return (val / 1000).toFixed(1) + 'k';
+          }
+          return val.toString();
+        });
+      } else {
+        animateValue(point as HTMLElement, 0, target, 2000);
+      }
+    }, index * 300);
+  });
+}
+
+function animateValue(
+  element: HTMLElement,
+  start: number,
+  end: number,
+  duration: number,
+  addPlus = false,
+  formatter: ((val: number) => string) | null = null
+) {
+  let startTimestamp: number | null = null;
+  const step = (timestamp: number) => {
+    if (!startTimestamp) startTimestamp = timestamp;
+    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+    const current = Math.floor(progress * (end - start) + start);
+
+    if (formatter) {
+      element.textContent = formatter(current);
+    } else {
+      element.textContent = current + (addPlus && current === end ? '+' : '');
+    }
+
+    if (progress < 1) {
+      window.requestAnimationFrame(step);
+    } else {
+      // Ensure final value is set correctly
+      if (formatter) {
+        element.textContent = formatter(end);
+      } else {
+        element.textContent = end + (addPlus ? '+' : '');
+      }
+    }
+  };
+  window.requestAnimationFrame(step);
+}
+
+function setupScrollAnimations() {
+  const observerOptions = {
+    threshold: 0.1,
+    rootMargin: '0px 0px -100px 0px'
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+
+        // Animate stats in reveal cards
+        if (entry.target.classList.contains('reveal-card')) {
+          const statValue = entry.target.querySelector('.stat-value');
+          if (statValue && !statValue.classList.contains('animated')) {
+            const target = parseFloat(statValue.getAttribute('data-target') || '0');
+            statValue.classList.add('animated');
+            if (target > 100) {
+              animateValue(statValue as HTMLElement, 0, target, 2000, false, (val) => {
+                if (val >= 1000) {
+                  return val.toLocaleString();
+                }
+                return val.toString();
+              });
+            } else {
+              animateValue(statValue as HTMLElement, 0, target, 2000, false, (val) => val.toFixed(1));
+            }
+          }
+
+          // Animate bar fills
+          const barFill = entry.target.querySelector('.bar-fill') as HTMLElement;
+          if (barFill && !barFill.classList.contains('animate')) {
+            const width = barFill.getAttribute('data-width');
+            setTimeout(() => {
+              barFill.style.setProperty('--width', width + '%');
+              barFill.classList.add('animate');
+            }, 300);
+          }
+        }
+
+        // Animate step visuals
+        if (entry.target.classList.contains('step')) {
+          const probValue = entry.target.querySelector('.prob-value');
+          if (probValue && !probValue.classList.contains('animated')) {
+            const target = parseInt(probValue.getAttribute('data-target') || '0');
+            probValue.classList.add('animated');
+            animateValue(probValue as HTMLElement, 0, target, 2000);
+          }
+        }
+      }
+    });
+  }, observerOptions);
+
+  // Observe steps
+  document.querySelectorAll('.step').forEach(step => {
+    observer.observe(step);
+  });
+
+  // Observe reveal cards
+  document.querySelectorAll('.reveal-card').forEach(card => {
+    observer.observe(card);
+  });
+
+  return () => observer.disconnect();
+}
+
+function setupProgressiveDisclosure() {
+  // Add staggered animations for reveal cards
+  const revealCards = document.querySelectorAll('.reveal-card');
+  revealCards.forEach((card, index) => {
+    (card as HTMLElement).style.transitionDelay = `${index * 0.1}s`;
+  });
+
+  // Add staggered animations for steps
+  const steps = document.querySelectorAll('.step');
+  steps.forEach((step, index) => {
+    (step as HTMLElement).style.transitionDelay = `${index * 0.15}s`;
+  });
+}
+
+function typeWriter(element: HTMLElement, text: string, speed = 50) {
+  if (!element) return;
+  let i = 0;
+  element.textContent = '';
+  function type() {
+    if (i < text.length) {
+      element.textContent += text.charAt(i);
+      i++;
+      setTimeout(type, speed);
+    } else {
+      // Add cursor blink effect
+      element.style.borderRight = '2px solid var(--accent-primary)';
+      setTimeout(() => {
+        element.style.borderRight = 'none';
+      }, 500);
+    }
+  }
+  type();
 }
