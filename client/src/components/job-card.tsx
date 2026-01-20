@@ -1,9 +1,24 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { ArrowUpRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import {
+  Briefcase,
+  Building2,
+  Clock,
+  ExternalLink,
+  MapPin,
+  TrendingUp,
+  BrainCircuit,
+  TrendingDown,
+  Minus,
+  Star
+} from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { AnalysisModal } from "./analysis-modal";
+import { useFavourites } from "@/hooks/useFavourites";
+
 
 interface JobCardProps {
   job: any;
@@ -36,6 +51,7 @@ function getApplySignalUI(signal?: string) {
 /* ---------------- JOB CARD ---------------- */
 
 export default function JobCard({ job }: JobCardProps) {
+  const [showAnalysis, setShowAnalysis] = useState(false);
   // ✅ SAFELY read analysis
   const analysis = job.analysis ?? null;
 
@@ -62,10 +78,37 @@ export default function JobCard({ job }: JobCardProps) {
     return <Minus className="h-3 w-3 text-muted-foreground" />;
   };
 
+  const { isStarred, addFavourite, removeFavourite } = useFavourites();
+  const starred = isStarred(job.id);
+
+  const toggleStar = () => {
+    if (starred) {
+      removeFavourite.mutate(job.id);
+    } else {
+      addFavourite.mutate({ jobId: job.id, jobType: job.type === 'Internship' ? 'internship' : 'job' });
+    }
+  };
+
   return (
-    <Card className="group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden relative">
+    <Card className="flex flex-col h-full group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "absolute top-3 right-3 z-10 rounded-full bg-background/20 backdrop-blur-md hover:bg-background/40 transition-colors",
+          starred ? "text-amber-400" : "text-muted-foreground hover:text-foreground"
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleStar();
+        }}
+      >
+        <Star className={cn("h-4 w-4", starred && "fill-current")} />
+      </Button>
+
       {/* Background accent */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
+
 
       <CardHeader className="p-5 pb-2 space-y-2">
         {/* Apply Signal Badge */}
@@ -89,6 +132,20 @@ export default function JobCard({ job }: JobCardProps) {
                 {job.title}
               </h3>
               <p className="text-sm text-muted-foreground">{job.company}</p>
+
+              {/* Company Metadata */}
+              <div className="flex flex-wrap gap-2 mt-1">
+                {job.companyType && (
+                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal bg-accent text-accent-foreground border-transparent">
+                    {job.companyType}
+                  </Badge>
+                )}
+                {job.companyTags && job.companyTags.map((tag: string) => (
+                  <span key={tag} className="text-[10px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5 border border-transparent">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -107,7 +164,7 @@ export default function JobCard({ job }: JobCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-5 pt-3">
+      <CardContent className="p-5 pt-3 flex-1">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-4">
           {job.hiringSignal && (
             <span className="flex items-center gap-1 bg-accent/50 px-2 py-1 rounded">
@@ -119,23 +176,54 @@ export default function JobCard({ job }: JobCardProps) {
         </div>
 
         {job.applicants && (
-          <p className="text-xs text-muted-foreground">
-            Competition:{" "}
-            <span className="font-mono text-foreground">
-              {job.applicants}
-            </span>{" "}
-            applicants
+          <p className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>
+              Competition: <span className="font-mono text-foreground">{job.applicants}</span> applicants
+            </span>
+            {job.companySizeTag && (
+              <span className="opacity-70 italic text-[10px]">Est. {job.companySizeTag}</span>
+            )}
           </p>
         )}
+
+        {/* Transparency / Source Info */}
+        <div className="mt-4 pt-4 border-t border-border/40 flex items-center justify-between">
+          {job.hiringPlatform && (
+            <div className="flex items-center gap-1.5 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all cursor-help" title={`Verified job from ${job.hiringPlatform} board`}>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-medium tracking-tight">Hiring via {job.hiringPlatform}</span>
+            </div>
+          )}
+          <span className="text-[9px] text-muted-foreground/60 italic leading-none max-w-[120px]">
+            Sourced from verified hiring systems
+          </span>
+        </div>
       </CardContent>
 
-      <CardFooter className="p-5 pt-0">
-        <Link href={`/jobs/${job.id}`}>
-          <Button className="w-full bg-primary/90 hover:bg-primary text-primary-foreground shadow-sm group-hover:shadow-md transition-all">
-            Analyze My Odds <ArrowUpRight className="ml-2 h-4 w-4" />
-          </Button>
-        </Link>
+      <CardFooter className="p-5 pt-0 flex flex-col gap-2 mt-auto">
+        <Button
+          variant="outline"
+          className="w-full h-11 justify-center gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-200 group"
+          onClick={() => setShowAnalysis(true)}
+        >
+          <BrainCircuit className="w-4 h-4 group-hover:text-primary transition-colors" />
+          Analyze My Chances
+        </Button>
+        <Button
+          className="w-full h-11 justify-center gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/10 transition-all duration-200"
+          onClick={() => window.open(job.applyUrl, '_blank')}
+        >
+          Apply Now
+          <ExternalLink className="w-4 h-4" />
+        </Button>
+
+        <AnalysisModal
+          isOpen={showAnalysis}
+          onClose={() => setShowAnalysis(false)}
+          job={job}
+        />
       </CardFooter>
     </Card>
   );
 }
+
