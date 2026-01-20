@@ -10,12 +10,15 @@ import {
   TrendingUp,
   BrainCircuit,
   TrendingDown,
-  Minus
+  Minus,
+  Star
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { AnalysisModal } from "./analysis-modal";
+import { useFavourites } from "@/hooks/useFavourites";
+
 
 interface JobCardProps {
   job: any;
@@ -75,10 +78,37 @@ export default function JobCard({ job }: JobCardProps) {
     return <Minus className="h-3 w-3 text-muted-foreground" />;
   };
 
+  const { isStarred, addFavourite, removeFavourite } = useFavourites();
+  const starred = isStarred(job.id);
+
+  const toggleStar = () => {
+    if (starred) {
+      removeFavourite.mutate(job.id);
+    } else {
+      addFavourite.mutate({ jobId: job.id, jobType: job.type === 'Internship' ? 'internship' : 'job' });
+    }
+  };
+
   return (
     <Card className="flex flex-col h-full group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "absolute top-3 right-3 z-10 rounded-full bg-background/20 backdrop-blur-md hover:bg-background/40 transition-colors",
+          starred ? "text-amber-400" : "text-muted-foreground hover:text-foreground"
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleStar();
+        }}
+      >
+        <Star className={cn("h-4 w-4", starred && "fill-current")} />
+      </Button>
+
       {/* Background accent */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
+
 
       <CardHeader className="p-5 pb-2 space-y-2">
         {/* Apply Signal Badge */}

@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import Profile from "@/pages/profile";
 import Jobs from "@/pages/jobs";
 import Internships from "@/pages/internships";
 import LandingPage from "@/pages/landing";
+import FavouritesPage from "./pages/favourites";
 
 function Router() {
   return (
@@ -20,11 +21,13 @@ function Router() {
       <Route path="/jobs/:id" component={JobDetails} />
       <Route path="/internships" component={Internships} />
       <Route path="/profile" component={Profile} />
-      <Route path="/applications" component={Dashboard} />
+      <Route path="/favourites" component={FavouritesPage} />
+      <Route path="/applications" component={FavouritesPage} />
       <Route component={NotFound} />
     </Switch>
   );
 }
+
 
 function App() {
   return (
