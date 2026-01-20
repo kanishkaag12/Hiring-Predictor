@@ -3,9 +3,20 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { fetchJobs } from "./jobs/job.service";
+import mongoose from "mongoose";
+import "dotenv/config";
+
+import { setupAuth } from "./auth";
 
 const app = express();
 const httpServer = createServer(app);
+
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/hirepulse";
+
+mongoose.connect(MONGODB_URI)
+  .then(() => log("Connected to MongoDB", "mongodb"))
+  .catch((err) => log(`MongoDB connection error: ${err}`, "mongodb"));
 
 declare module "http" {
   interface IncomingMessage {
@@ -22,6 +33,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// IMPORTANT: Auth session setup must come before routes but after body parsers
+setupAuth(app);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -69,11 +83,11 @@ app.use((req, res, next) => {
   });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("Global Error Handler:", err);
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
@@ -92,7 +106,7 @@ app.use((req, res, next) => {
   // It is the only port that is not firewalled.
   const port = 3001;
 
-httpServer.listen(port, "127.0.0.1", () => {
-  log(`Backend running on http://localhost:${port}`);
-});
+  httpServer.listen(port, "127.0.0.1", () => {
+    log(`Backend running on http://localhost:${port}`);
+  });
 })();

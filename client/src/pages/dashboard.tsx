@@ -1,10 +1,21 @@
 import { motion } from "framer-motion";
 import { Layout, HiringTrendChart, JobCard } from "@/components/index";
-import { MOCK_JOBS, HIRING_TRENDS, MOCK_USER } from "@/lib/mockData";
+import { MOCK_JOBS, HIRING_TRENDS } from "@/lib/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Users, Target } from "lucide-react";
+import { TrendingUp, Users, Target, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Dashboard() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <Layout>
       <div className="p-6 md:p-12 space-y-8 max-w-7xl mx-auto">
@@ -14,7 +25,7 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl font-display font-bold text-foreground mb-2"
           >
-            Welcome back, {MOCK_USER.name.split(" ")[0]}
+            Welcome back, {user?.name.split(" ")[0] || "User"}
           </motion.h1>
           <p className="text-muted-foreground text-lg">
             Market signals are trending <span className="text-emerald-500 font-medium">positive</span> for your profile today.
@@ -32,7 +43,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-medium">Profile Rank</p>
-                    <p className="text-2xl font-mono font-bold">Top {100 - MOCK_USER.rank}%</p>
+                    <p className="text-2xl font-mono font-bold">Top 15%</p>
                   </div>
                 </div>
               </CardContent>

@@ -35,10 +35,10 @@ export default function LandingPage() {
             <a href="#audience" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">For You</a>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href="/auth">
               <Button variant="ghost" className="hidden md:inline-flex">Log In</Button>
             </Link>
-            <Link href="/dashboard">
+            <Link href="/auth">
               <Button className="bg-primary text-primary-foreground shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all">
                 Get Started
               </Button>
@@ -64,7 +64,7 @@ export default function LandingPage() {
               HirePulse uses real-time hiring trends and peer data to help students, freshers, and job-seekers understand exactly where they stand in the applicant pool.
             </p>
             <div className="flex flex-col sm:flex-row gap-5">
-              <Link href="/dashboard">
+              <Link href="/auth">
                 <Button size="lg" className="h-14 px-10 text-lg bg-primary text-primary-foreground shadow-xl shadow-primary/10 hover:shadow-primary/20 transition-all group rounded-full">
                   Analyze My Chances <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
@@ -266,7 +266,7 @@ export default function LandingPage() {
           <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
             Join thousands of candidates who are using data to drive their career search.
           </p>
-          <Link href="/dashboard">
+          <Link href="/auth">
             <Button size="lg" className="h-16 px-12 text-xl bg-primary text-primary-foreground shadow-2xl shadow-primary/10 hover:shadow-primary/20 transition-all rounded-full">
               Analyze My Profile <ArrowRight className="ml-2 h-6 w-6" />
             </Button>
