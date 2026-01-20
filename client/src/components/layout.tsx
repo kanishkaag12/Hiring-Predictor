@@ -9,9 +9,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
     { icon: Search, label: "Find Jobs", href: "/jobs" },
     { icon: Home, label: "Find Internships", href: "/internships" },
-    { icon: Briefcase, label: "My Applications", href: "/applications" },
+    { icon: Briefcase, label: "Favourites", href: "/favourites" },
     { icon: User, label: "Profile", href: "/profile" },
   ];
+
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
