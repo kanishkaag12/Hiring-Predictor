@@ -1,9 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, User, Search, Settings, LogOut, Home, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { user } = useAuth();
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
@@ -51,11 +53,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-border/40">
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs">
-              AC
+              {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">Alex Chen</p>
-              <p className="text-xs text-muted-foreground truncate">Premium Member</p>
+              <p className="text-sm font-medium text-foreground truncate">{user?.name || 'Guest User'}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email || ''}</p>
             </div>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </div>

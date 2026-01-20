@@ -1,13 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { MOCK_DASHBOARD_DATA } from "@/lib/dashboardMockData";
+import { getQueryFn } from "@/lib/queryClient";
 
 export function useDashboardData() {
     return useQuery({
         queryKey: ["/api/dashboard"],
-        queryFn: async () => {
-            // Simulate API latency
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            return MOCK_DASHBOARD_DATA;
-        },
+        queryFn: getQueryFn({ on401: "returnNull" }),
     });
 }
