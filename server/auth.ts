@@ -2,14 +2,13 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { pool, storage } from "./storage";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { storage } from "./storage";
 import { User as UserType, insertUserSchema } from "@shared/schema";
 
 const scryptAsync = promisify(scrypt);
-const MemoryStore = createMemoryStore(session);
 
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -24,16 +23,20 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
+const PostgresSessionStore = connectPg(session);
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "hirepulse-secret",
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStore({
-      checkPeriod: 86400000, 
+    store: new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     }),
     cookie: {
       secure: app.get("env") === "production",
+      maxAge: 2 * 60 * 60 * 1000, // 2 hours
     },
   };
 

@@ -40,8 +40,12 @@ export interface IStorage {
 }
 
 // Initialize database connection
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 30000,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 const db = drizzle(pool);
