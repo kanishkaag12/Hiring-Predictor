@@ -12,6 +12,7 @@ import Internships from "@/pages/internships";
 import LandingPage from "@/pages/landing";
 import FavouritesPage from "./pages/favourites";
 import AuthPage from "@/pages/auth";
+import Settings from "@/pages/settings";
 import { ProtectedRoute } from "./lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
 
@@ -25,6 +26,7 @@ function Router() {
       <ProtectedRoute path="/jobs/:id" component={JobDetails} />
       <ProtectedRoute path="/internships" component={Internships} />
       <ProtectedRoute path="/profile" component={Profile} />
+      <ProtectedRoute path="/settings" component={Settings} />
       <ProtectedRoute path="/favourites" component={FavouritesPage} />
       <ProtectedRoute path="/applications" component={FavouritesPage} />
       <Route component={NotFound} />
