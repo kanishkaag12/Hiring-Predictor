@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText, Github, Linkedin, Mail, MapPin,
   GraduationCap, Briefcase, Plus, Trash2,
-  Edit3, ExternalLink, Code, Layers, Info, CheckCircle2
+  Edit3, ExternalLink, Code, Layers, Info, CheckCircle2,
+  CloudLightning, TrendingUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfile } from "@/hooks/useProfile";
@@ -42,6 +43,24 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState("identity");
   const [linkedinModalOpen, setLinkedinModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+
+  // AI Insights State
+  const [insights, setInsights] = useState<any>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const generateInsights = async () => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch("/api/profile/ai-insights");
+      if (!res.ok) throw new Error("Failed to generate insights");
+      const data = await res.json();
+      setInsights(data);
+    } catch (err) {
+      toast({ title: "AI Analysis Failed", description: "Could not connect to AI service.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   if (isLoading || !profile) {
     return (
@@ -579,8 +598,95 @@ export default function Profile() {
               </Card>
             </TabsContent>
 
-            {/* TAB 4: INSIGHTS (ANALYTICS) */}
+            {/* TAB 4: INSIGHTS (ANALYTICS & AI) */}
             <TabsContent value="insights" className="space-y-8 mt-0 border-none p-0 outline-none">
+              {/* AI Career Assistant Section */}
+              <Card className="border-none bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-transparent shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                  <CloudLightning className="w-48 h-48" />
+                </div>
+                <CardHeader className="relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                      <CloudLightning className="w-6 h-6 text-primary-foreground" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl font-black tracking-tight">AI Career Assistant</CardTitle>
+                      <CardDescription className="font-medium">Get a professional analysis of your profile and career roadmap.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="relative z-10 space-y-6">
+                  {isGenerating ? (
+                    <div className="py-12 flex flex-col items-center justify-center space-y-4 animate-in fade-in zoom-in duration-300">
+                      <div className="relative">
+                        <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                        <CloudLightning className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-primary animate-pulse" />
+                      </div>
+                      <p className="font-bold text-lg animate-pulse">Consulting AI Career Expert...</p>
+                    </div>
+                  ) : insights ? (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6"
+                    >
+                      <div className="p-6 rounded-2xl bg-background/50 border border-primary/20 backdrop-blur-sm">
+                        <h4 className="flex items-center gap-2 font-bold text-lg mb-2">
+                          <FileText className="w-5 h-5 text-primary" /> Professional Summary
+                        </h4>
+                        <p className="text-muted-foreground leading-relaxed">{insights.summary}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-sm uppercase tracking-widest text-emerald-400">Key Strengths</h4>
+                          <div className="space-y-2">
+                            {insights.strengths.map((s: string, i: number) => (
+                              <div key={i} className="flex gap-2 items-start text-sm bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
+                                <span>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-sm uppercase tracking-widest text-primary">Recommendations</h4>
+                          <div className="space-y-2">
+                            {insights.recommendations.map((r: string, i: number) => (
+                              <div key={i} className="flex gap-2 items-start text-sm bg-primary/5 p-3 rounded-xl border border-primary/10">
+                                <TrendingUp className="w-4 h-4 text-primary mt-0.5" />
+                                <span>{r}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        className="w-full rounded-xl border-dashed"
+                        onClick={generateInsights}
+                      >
+                        Regenerate Analysis
+                      </Button>
+                    </motion.div>
+                  ) : (
+                    <div className="py-10 text-center space-y-6">
+                      <div className="max-w-[500px] mx-auto space-y-2">
+                        <p className="text-muted-foreground">Our AI model will evaluate your skills, projects, and experiences against current industry standards to provide a personalized career roadmap.</p>
+                      </div>
+                      <Button 
+                        onClick={generateInsights}
+                        className="px-8 rounded-xl h-12 text-base font-bold shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                      >
+                        Generate My AI Analysis
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <Card className="border-border/40 bg-card/40 backdrop-blur-md overflow-hidden relative">
                   <div className="absolute top-0 right-0 p-6 opacity-5">
@@ -601,37 +707,142 @@ export default function Profile() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-end">
                         <p className="text-sm font-bold opacity-70">Resume Data Points</p>
-                        <p className="text-2xl font-black text-emerald-400">12/15</p>
+                        <p className="text-2xl font-black text-emerald-400">
+                          {(() => {
+                            const dataPoints = [
+                              profile.name,
+                              profile.role,
+                              profile.college,
+                              profile.gradYear,
+                              profile.location,
+                              profile.githubUrl,
+                              profile.linkedinUrl,
+                              profile.resumeUrl,
+                              ...(profile.skills || []),
+                              ...(profile.projects || []),
+                              ...(profile.experiences || [])
+                            ].filter(Boolean).length;
+                            return `${dataPoints}/15`;
+                          })()}
+                        </p>
                       </div>
-                      <Progress value={80} className="h-2" />
+                      <Progress value={(() => {
+                        const dataPoints = [
+                          profile.name,
+                          profile.role,
+                          profile.college,
+                          profile.gradYear,
+                          profile.location,
+                          profile.githubUrl,
+                          profile.linkedinUrl,
+                          profile.resumeUrl,
+                          ...(profile.skills || []),
+                          ...(profile.projects || []),
+                          ...(profile.experiences || [])
+                        ].filter(Boolean).length;
+                        return Math.min(100, (dataPoints / 15) * 100);
+                      })()} className="h-2" />
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between items-end">
                         <p className="text-sm font-bold opacity-70">Market Alignment</p>
-                        <p className="text-2xl font-black text-primary">High</p>
+                        <p className="text-2xl font-black text-primary">
+                          {(() => {
+                            const score = ((profile.skills?.length || 0) * 10) + ((profile.projects?.length || 0) * 15) + ((profile.experiences?.length || 0) * 20);
+                            return score >= 60 ? "High" : score >= 30 ? "Medium" : "Low";
+                          })()}
+                        </p>
                       </div>
-                      <Progress value={92} className="h-2" />
+                      <Progress value={(() => {
+                        const score = ((profile.skills?.length || 0) * 10) + ((profile.projects?.length || 0) * 15) + ((profile.experiences?.length || 0) * 20);
+                        return Math.min(100, score);
+                      })()} className="h-2" />
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between items-end">
                         <p className="text-sm font-bold opacity-70">Skill Depth Index</p>
-                        <p className="text-2xl font-black text-blue-400">6.8 <span className="text-sm text-muted-foreground font-medium">/ 10</span></p>
+                        <p className="text-2xl font-black text-blue-400">
+                          {(() => {
+                            const advancedCount = profile.skills?.filter(s => s.level === "Advanced").length || 0;
+                            const intermediateCount = profile.skills?.filter(s => s.level === "Intermediate").length || 0;
+                            const beginnerCount = profile.skills?.filter(s => s.level === "Beginner").length || 0;
+                            const score = (advancedCount * 3 + intermediateCount * 2 + beginnerCount * 1) / Math.max(1, (profile.skills?.length || 1));
+                            return score.toFixed(1);
+                          })()} <span className="text-sm text-muted-foreground font-medium">/ 10</span>
+                        </p>
                       </div>
-                      <Progress value={68} className="h-2" />
+                      <Progress value={(() => {
+                        const advancedCount = profile.skills?.filter(s => s.level === "Advanced").length || 0;
+                        const intermediateCount = profile.skills?.filter(s => s.level === "Intermediate").length || 0;
+                        const beginnerCount = profile.skills?.filter(s => s.level === "Beginner").length || 0;
+                        const totalSkills = profile.skills?.length || 1;
+                        const score = ((advancedCount * 3 + intermediateCount * 2 + beginnerCount * 1) / totalSkills) * 10;
+                        return Math.min(100, score * 3.33);
+                      })()} className="h-2" />
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-none bg-gradient-to-br from-primary/10 to-indigo-500/5 shadow-inner">
                   <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
-                    <div className="w-24 h-24 rounded-full bg-background/80 flex items-center justify-center shadow-xl">
-                      <CheckCircle2 className="w-12 h-12 text-emerald-500 drop-shadow-lg" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-2xl font-black tracking-tight">Market Percentile</h3>
-                      <p className="text-6xl font-display font-black text-transparent bg-clip-text bg-gradient-to-b from-foreground to-foreground/30">Top 12%</p>
-                      <p className="text-muted-foreground font-medium max-w-[200px] mx-auto text-sm">You are currently in the top tier of candidates for {profile.role || "your role"}.</p>
-                    </div>
+                    {(() => {
+                      const totalScore = 
+                        (profile.skills?.length || 0) * 5 + 
+                        (profile.projects?.length || 0) * 10 + 
+                        (profile.experiences?.length || 0) * 15 +
+                        (profile.resumeUrl ? 10 : 0) +
+                        (profile.githubUrl ? 5 : 0) +
+                        (profile.linkedinUrl ? 5 : 0);
+                      
+                      const maxScore = 100; // Maximum possible score
+                      const completionPercentage = Math.min(100, Math.round((totalScore / maxScore) * 100));
+                      
+                      // Determine strength level and message
+                      let strengthLevel = "Getting Started";
+                      let strengthColor = "text-orange-400";
+                      let message = "Add skills, projects, and experiences to boost your profile!";
+                      let icon = "🚀";
+                      
+                      if (completionPercentage >= 80) {
+                        strengthLevel = "Excellent";
+                        strengthColor = "text-emerald-400";
+                        message = "Your profile is highly competitive in the job market!";
+                        icon = "⭐";
+                      } else if (completionPercentage >= 60) {
+                        strengthLevel = "Strong";
+                        strengthColor = "text-blue-400";
+                        message = "You're on the right track! Keep building your profile.";
+                        icon = "💪";
+                      } else if (completionPercentage >= 40) {
+                        strengthLevel = "Growing";
+                        strengthColor = "text-cyan-400";
+                        message = "Good progress! Add more projects to stand out.";
+                        icon = "📈";
+                      } else if (completionPercentage >= 20) {
+                        strengthLevel = "Building";
+                        strengthColor = "text-yellow-400";
+                        message = "You've started! Keep adding to improve your visibility.";
+                        icon = "🔨";
+                      }
+                      
+                      return (
+                        <>
+                          <div className="w-24 h-24 rounded-full bg-background/80 flex items-center justify-center shadow-xl text-4xl">
+                            {icon}
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-2xl font-black tracking-tight">Profile Strength</h3>
+                            <p className={`text-6xl font-display font-black ${strengthColor}`}>
+                              {completionPercentage}%
+                            </p>
+                            <p className="text-xl font-bold opacity-80">{strengthLevel}</p>
+                            <p className="text-muted-foreground font-medium max-w-[250px] mx-auto text-sm pt-2">
+                              {message}
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               </div>
