@@ -7,8 +7,10 @@ import { pool, storage } from "./storage";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { User as UserType, insertUserSchema } from "@shared/schema";
+import jwt from "jsonwebtoken";
 
 const scryptAsync = promisify(scrypt);
+const JWT_SECRET = process.env.JWT_SECRET || "hirepulse-jwt-secret-2026";
 
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -21,6 +23,12 @@ async function comparePasswords(supplied: string, stored: string) {
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
+function generateToken(user: UserType) {
+  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+    expiresIn: "24h",
+  });
 }
 
 const PostgresSessionStore = connectPg(session);
@@ -56,7 +64,7 @@ export function setupAuth(app: Express) {
     store: sessionStore,
     cookie: {
       secure: app.get("env") === "production",
-      maxAge: 2 * 60 * 60 * 1000, // 2 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   };
 
@@ -73,12 +81,23 @@ export function setupAuth(app: Express) {
       { usernameField: "email" },
       async (email, password, done) => {
         try {
+          console.log("[AUTH] Attempting login for:", email);
           const user = await storage.getUserByEmail(email);
-          if (!user || !(await comparePasswords(password, user.password))) {
+          if (!user) {
+            console.log("[AUTH] User not found:", email);
             return done(null, false, { message: "Invalid email or password" });
           }
+          
+          const isMatch = await comparePasswords(password, user.password);
+          if (!isMatch) {
+            console.log("[AUTH] Password mismatch for:", email);
+            return done(null, false, { message: "Invalid email or password" });
+          }
+
+          console.log("[AUTH] Login successful for:", email);
           return done(null, user);
         } catch (err) {
+          console.error("[AUTH] Error in LocalStrategy:", err);
           return done(err);
         }
       }
@@ -93,12 +112,10 @@ export function setupAuth(app: Express) {
     try {
       const user = await storage.getUser(id);
       if (!user) {
-        // User session is invalid or deleted, clear it silently
         return done(null, false);
       }
       done(null, user);
     } catch (err) {
-      // Log but don't throw - this prevents blocking unauthenticated users
       console.warn("Deserialize user error for id:", id, err);
       done(null, false);
     }
@@ -106,77 +123,68 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      console.log("[REGISTER] Request body keys:", req.body ? Object.keys(req.body) : "NONE");
+      console.log("[REGISTER] Data received:", { ...req.body, password: "[REDACTED]" });
       
-      if (!req.body) {
-        console.error("[REGISTER] Request body is missing");
-        return res.status(400).send("Request body is missing");
-      }
-
-      if (!insertUserSchema) {
-        console.error("[REGISTER] insertUserSchema is not imported or undefined");
-        return res.status(500).send("Internal validation error");
-      }
-
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
-        console.log("[REGISTER] Validation failed:", JSON.stringify(result.error));
+        console.log("[REGISTER] Validation error:", result.error.errors);
         return res.status(400).json(result.error);
       }
       
       const { email, password } = result.data;
-      console.log("[REGISTER] Validated email:", email);
 
-      let existingUser;
-      try {
-        existingUser = await storage.getUserByEmail(email);
-      } catch (storageErr) {
-        console.error("[REGISTER] Error in storage.getUserByEmail:", storageErr);
-        throw storageErr;
-      }
-      
+      const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
-        console.log("[REGISTER] User already exists:", email);
+        console.log("[REGISTER] Email already exists:", email);
         return res.status(400).send("User already exists");
       }
 
-      let hashedPassword;
-      try {
-        hashedPassword = await hashPassword(password);
-      } catch (hashErr) {
-        console.error("[REGISTER] Error hashing password:", hashErr);
-        throw hashErr;
-      }
-      
-      let user;
-      try {
-        user = await storage.createUser({
-          ...result.data,
-          password: hashedPassword,
-        });
-        console.log("[REGISTER] User created successfully, id:", user.id);
-      } catch (createErr) {
-        console.error("[REGISTER] Error in storage.createUser:", createErr);
-        throw createErr;
-      }
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser({
+        ...result.data,
+        password: hashedPassword,
+      });
 
-      console.log("[REGISTER] Attempting req.login");
+      console.log("[REGISTER] User created, id:", user.id);
+
       req.login(user, (err) => {
         if (err) {
           console.error("[REGISTER] req.login error:", err);
           return next(err);
         }
-        console.log("[REGISTER] Login successful, sending response");
-        res.status(201).json(user);
+        
+        const token = generateToken(user);
+        console.log("[REGISTER] Success, returning user and token");
+        res.status(201).json({ user, token });
       });
     } catch (err) {
-      console.error("[REGISTER] Unhandled error during registration:", err);
+      console.error("[REGISTER] Registration failure:", err);
       next(err);
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: UserType, info: any) => {
+      if (err) {
+        console.error("[LOGIN] Passport error:", err);
+        return next(err);
+      }
+      if (!user) {
+        console.log("[LOGIN] Auth failed:", info?.message);
+        return res.status(401).json({ message: info?.message || "Authentication failed" });
+      }
+      
+      req.login(user, (err) => {
+        if (err) {
+          console.error("[LOGIN] req.login error:", err);
+          return next(err);
+        }
+        
+        const token = generateToken(user);
+        console.log("[LOGIN] Success for:", user.email);
+        res.status(200).json({ user, token });
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {

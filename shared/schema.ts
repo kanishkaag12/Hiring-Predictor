@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").unique(), // Keep for potential use, but not required if login is by email
+  username: text("username").unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name"),
@@ -19,8 +19,6 @@ export const users = pgTable("users", {
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
   resumeScore: integer("resume_score").default(0),
-  interestRoles: jsonb("interest_roles").$type<string[]>().default([]),
-  userType: text("user_type"),
 });
 
 export const favourites = pgTable("favourites", {
@@ -61,22 +59,18 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
   name: true,
-  userType: true,
 });
 
-export const insertFavouriteSchema = createInsertSchema(favourites).omit({ id: true, savedAt: true });
-export const insertSkillSchema = createInsertSchema(skills).omit({ id: true });
-export const insertProjectSchema = createInsertSchema(projects).omit({ id: true });
-export const insertExperienceSchema = createInsertSchema(experience).omit({ id: true });
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Favourite = typeof favourites.$inferSelect;
 export type Skill = typeof skills.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Experience = typeof experience.$inferSelect;
-export type InsertFavourite = z.infer<typeof insertFavouriteSchema>;
-export type InsertSkill = z.infer<typeof insertSkillSchema>;
-export type InsertProject = z.infer<typeof insertProjectSchema>;
-export type InsertExperience = z.infer<typeof insertExperienceSchema>;
+
+export type InsertFavourite = any;
+export type InsertSkill = any;
+export type InsertProject = any;
+export type InsertExperience = any;
+
 
