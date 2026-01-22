@@ -10,3 +10,5 @@ export * from "./dashboard/YourChancesSummary";
 export * from "./dashboard/PeerComparison";
 export * from "./dashboard/ActionableSteps";
 export * from "./dashboard/RecentActivity";
+export * from "./dashboard/RoleReadinessOverview";
+export * from "./dashboard/WhatIfSimulator";

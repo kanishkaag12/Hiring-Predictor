@@ -19,6 +19,8 @@ export const users = pgTable("users", {
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
   resumeScore: integer("resume_score").default(0),
+  interestRoles: jsonb("interest_roles").$type<string[]>().default([]),
+  userType: text("user_type"),
 });
 
 export const favourites = pgTable("favourites", {
@@ -59,6 +61,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
   name: true,
+  userType: true,
 });
 
 export const insertFavouriteSchema = createInsertSchema(favourites).omit({ id: true, savedAt: true });

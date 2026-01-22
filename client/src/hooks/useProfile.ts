@@ -21,6 +21,8 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            // Also invalidate dashboard completeness check
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -31,6 +33,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -40,6 +43,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -117,6 +121,18 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+        },
+    });
+
+    const updateInterestRoles = useMutation({
+        mutationFn: async (roles: string[]) => {
+            const res = await apiRequest("POST", "/api/profile/interest-roles", { roles });
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -133,6 +149,7 @@ export function useProfile() {
         updateLinkedin,
         updateGithub,
         uploadResume,
+        updateInterestRoles,
     };
 }
 
