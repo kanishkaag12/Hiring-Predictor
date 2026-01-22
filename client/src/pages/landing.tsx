@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from "wouter";
+import { useTheme } from "next-themes";
+import { Sun, Moon, Twitter, Linkedin, Github, Mail, Phone, MapPin } from "lucide-react";
 import './landing.css';
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
+  const { theme, setTheme } = useTheme();
   const heroRef = useRef<HTMLElement>(null);
   const pulseLinesRef = useRef<HTMLDivElement>(null);
 
@@ -113,19 +116,18 @@ export default function LandingPage() {
     };
   }, []);
 
-  const revealChances = () => {
-    document.getElementById('how-it-works')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
   };
 
-  const scrollToHow = () => {
-    document.getElementById('how-it-works')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
-  };
+  const revealChances = () => scrollToSection('how-it-works');
+  const scrollToHow = () => scrollToSection('how-it-works');
 
   const handleLogin = () => {
     setLocation("/dashboard");
@@ -143,7 +145,23 @@ export default function LandingPage() {
           <div className="logo">
             <span className="logo-text">HirePulse</span>
           </div>
+          <nav className="header-nav-links">
+            <button className="nav-link" onClick={() => scrollToSection('hero')}>Home</button>
+            <button className="nav-link" onClick={() => scrollToSection('how-it-works')}>About</button>
+            <button className="nav-link" onClick={() => scrollToSection('services')}>Services</button>
+            <button className="nav-link" onClick={() => scrollToSection('team')}>Team</button>
+            <button className="nav-link" onClick={() => scrollToSection('testimonials')}>Testimonials</button>
+            <button className="nav-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
+            <button className="nav-link" onClick={() => scrollToSection('contact')}>Contact</button>
+          </nav>
           <nav className="header-nav">
+            <button
+              className="theme-toggle"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <button className="btn-login" onClick={handleLogin}>Login</button>
             <button className="btn-signup" onClick={handleSignup}>Sign Up</button>
           </nav>
@@ -479,6 +497,104 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Services Section */}
+      <section className="services" id="services">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[OUR CAPABILITIES]</span>
+            <h2>How We Empower Your Journey</h2>
+          </div>
+          <div className="services-grid">
+            <div className="service-card">
+              <h3>Profile Optimization</h3>
+              <p>Advanced AI suggestions to highlight your most relevant skills for target roles.</p>
+            </div>
+            <div className="service-card">
+              <h3>Market Intelligence</h3>
+              <p>Real-time data on hiring trends and competitive landscapes across industries.</p>
+            </div>
+            <div className="service-card">
+              <h3>Direct Matchmaking</h3>
+              <p>Direct connections to recruiters looking for profiles exactly like yours.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Team Section */}
+      <section className="team" id="team">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[THE MINDS]</span>
+            <h2>Built by Experts, For You</h2>
+          </div>
+          <div className="team-grid">
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>Data Scientists</h4>
+              <p>Mapping the complex patterns of the global job market.</p>
+            </div>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>Industry Veterans</h4>
+              <p>Guiding our AI with decades of recruitment experience.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="testimonials" id="testimonials">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[SUCCESS STORIES]</span>
+            <h2>Proven Results</h2>
+          </div>
+          <div className="testimonials-grid">
+            <div className="testimonial">
+              <p>"HirePulse changed my strategy. I stopped guessing and started applying where I actually had a shot."</p>
+              <span>- Tech Lead @ Fortune 500</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="pricing" id="pricing">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[PLANS]</span>
+            <h2>Transparent Pricing</h2>
+          </div>
+          <div className="pricing-grid">
+            <div className="price-card">
+              <h3>Free</h3>
+              <div className="price">$0</div>
+              <p>Basic analysis and 3 chances per month.</p>
+            </div>
+            <div className="price-card featured">
+              <h3>Pro</h3>
+              <div className="price">$19<span>/mo</span></div>
+              <p>Unlimited analysis, deep insights, and priority support.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section className="contact" id="contact">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[GET IN TOUCH]</span>
+            <h2>Have Questions?</h2>
+          </div>
+          <div className="contact-container">
+            <p>Connect with our team to learn more about how HirePulse can help you.</p>
+            <button className="cta-secondary">Contact Support</button>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="final-cta">
         <div className="container">
@@ -504,6 +620,80 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      <footer className="landing-footer">
+        <div className="footer-wave">
+          <svg data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
+            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" className="shape-fill"></path>
+          </svg>
+        </div>
+
+        <div className="footer-top-callout">
+          <div className="container">
+            <div className="callout-flex">
+              <div className="callout-text">
+                <h3>Ready to transform your hiring journey?</h3>
+                <p>Join thousands of candidates who already use HiroPulse to land their dream jobs.</p>
+              </div>
+              <div className="callout-actions">
+                <button className="cta-primary" onClick={handleSignup}>Get Started Now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-content">
+          <div className="footer-brand">
+            <div className="logo">
+              <span className="logo-text">HIREPULSE</span>
+            </div>
+            <p>Advanced AI-driven insights for job seekers. Know your odds, improve your resume, and land more interviews.</p>
+            <div className="footer-social">
+              <a href="#" aria-label="Twitter"><Twitter size={20} /></a>
+              <a href="#" aria-label="LinkedIn"><Linkedin size={20} /></a>
+              <a href="#" aria-label="GitHub"><Github size={20} /></a>
+            </div>
+          </div>
+
+          <div className="footer-links-grid">
+            <div className="footer-links">
+              <h4>Product</h4>
+              <ul>
+                <li><a href="#" onClick={() => scrollToSection('hero')}>Features</a></li>
+                <li><a href="#" onClick={() => scrollToSection('how-it-works')}>How it Works</a></li>
+                <li><a href="#" onClick={() => scrollToSection('pricing')}>Pricing</a></li>
+                <li><a href="#" onClick={() => scrollToSection('testimonials')}>Success Stories</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-links">
+              <h4>Support</h4>
+              <ul>
+                <li><a href="#" onClick={() => scrollToSection('contact')}>Help Center</a></li>
+                <li><a href="#" onClick={() => scrollToSection('contact')}>Contact Us</a></li>
+                <li><a href="#">Privacy Policy</a></li>
+                <li><a href="#">Terms of Service</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-contact">
+              <h4>Connect</h4>
+              <div className="footer-contact-info">
+                <p><Mail size={16} /> support@hirepulse.ai</p>
+                <p><Phone size={16} /> +1 (555) 000-1234</p>
+                <p><MapPin size={16} /> 123 AI Boulevard, Tech City</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <div className="container">
+            <div className="footer-bottom-flex">
+              <p className="copyright">&copy; {new Date().getFullYear()} HiroPulse. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
