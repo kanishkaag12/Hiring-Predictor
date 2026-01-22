@@ -40,14 +40,18 @@ export interface IStorage {
 }
 
 // Initialize database connection
-// Initialize database connection
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 const db = drizzle(pool);
 
-const useMemoryStorage = true;
+// Persist to Postgres by default; opt into memory with USE_MEMORY_STORAGE=true
+const useMemoryStorage = process.env.USE_MEMORY_STORAGE === "true";
+
+if (useMemoryStorage) {
+  console.warn("[storage] Using in-memory storage; accounts will reset on restart. Set USE_MEMORY_STORAGE=false to persist.");
+}
 
 class InMemoryStorage implements IStorage {
   private users: Map<string, User> = new Map();
@@ -84,8 +88,6 @@ class InMemoryStorage implements IStorage {
       resumeName: null,
       resumeUploadedAt: null,
       resumeScore: 0,
-      interestRoles: [],
-      userType: insertUser.userType || null,
     };
     this.users.set(id, user);
     return user;
@@ -231,7 +233,6 @@ export class PostgresStorage implements IStorage {
       const result = await db.insert(users).values({
         ...insertUser,
         username: (insertUser as any).username || insertUser.email.split("@")[0],
-        interestRoles: [],
       }).returning();
       return result[0];
     } catch (error) {
