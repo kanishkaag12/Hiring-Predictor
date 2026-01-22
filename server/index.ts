@@ -1,8 +1,12 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { fetchJobs } from "./jobs/job.service";
+
+import { log } from "./utils/logger";
 
 const app = express();
 const httpServer = createServer(app);
@@ -22,17 +26,6 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
-
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
-}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -62,7 +55,19 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    log("Starting server initialization...", "system");
+    
+    // PostgreSQL connection is initialized in storage.ts via Drizzle ORM
+    const DATABASE_URL = process.env.DATABASE_URL;
+    if (!DATABASE_URL) {
+      throw new Error("DATABASE_URL must be defined in .env");
+    }
+    log("PostgreSQL configuration loaded", "database");
+
+    log("Registering routes...", "system");
+    setupAuth(app);
     await registerRoutes(httpServer, app);
+    log("Routes registered", "system");
 
     app.get("/api/jobs/real", async (_req, res) => {
       const jobs = await fetchJobs();
@@ -81,10 +86,13 @@ app.use((req, res, next) => {
     // setting up all the other routes so the catch-all route
     // doesn't interfere with the other routes
     if (process.env.NODE_ENV === "production") {
+      log("Setting up static server (production)", "system");
       serveStatic(app);
     } else {
+      log("Setting up Vite (development)", "system");
       const { setupVite } = await import("./vite");
       await setupVite(httpServer, app);
+      log("Vite setup complete", "system");
     }
 
     // ALWAYS serve the app on the port specified in the environment variable PORT
