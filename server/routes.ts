@@ -8,6 +8,7 @@ import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
 import { IntelligenceService } from "./services/intelligence.service";
 import { AIService } from "./services/ai.service";
+import { AISimulationService } from "./services/ai-simulation.service";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -477,6 +478,116 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error in AI Insights:", error);
       res.status(500).json({ message: "Failed to generate AI insights" });
+    }
+  });
+
+  // 🔮 AI What-If Simulator (LLM-driven)
+  app.post("/api/ai/simulate", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { userQuery } = req.body || {};
+
+      if (!userQuery || !userQuery.trim()) {
+        return res.status(400).json({ message: "userQuery is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+      const interestRoles = user.interestRoles || [];
+
+      // Optional resume text to improve context
+      let resumeText: string | undefined;
+      if (user.resumeUrl) {
+        try {
+          const resumePath = path.join(process.cwd(), "uploads", path.basename(user.resumeUrl));
+          if (fs.existsSync(resumePath)) {
+            resumeText = fs.readFileSync(resumePath, "utf-8").substring(0, 2000);
+          }
+        } catch (err) {
+          console.warn("Could not read resume file:", err);
+        }
+      }
+
+      const simulation = await AISimulationService.simulate(
+        userQuery.trim(),
+        user,
+        skills,
+        projects,
+        experiences,
+        interestRoles,
+        resumeText
+      );
+
+      res.json(simulation);
+    } catch (error) {
+      console.error("Error in /api/ai/simulate:", error);
+      res.status(500).json({
+        message: "Failed to run simulation",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // 🔮 WHAT-IF SIMULATOR (Chat-based)
+  app.post("/api/what-if/chat", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { userInput } = req.body;
+
+      if (!userInput || !userInput.trim()) {
+        return res.status(400).json({ message: "userInput is required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+      const interestRoles = user.interestRoles || [];
+
+      if (interestRoles.length === 0) {
+        return res.status(400).json({
+          message: "Please select at least one interest role before using the simulator"
+        });
+      }
+
+      // Get resume text if uploaded
+      let resumeText: string | undefined;
+      if (user.resumeUrl) {
+        try {
+          const resumePath = path.join(process.cwd(), "uploads", path.basename(user.resumeUrl));
+          if (fs.existsSync(resumePath)) {
+            resumeText = fs.readFileSync(resumePath, "utf-8").substring(0, 2000);
+          }
+        } catch (err) {
+          console.warn("Could not read resume file:", err);
+        }
+      }
+
+      // Use the what-if simulator prompt service
+      const { WhatIfSimulatorPrompt } = await import("./services/what-if-simulator-prompt");
+      const simulation = await WhatIfSimulatorPrompt.simulateCareerAction(
+        userInput,
+        user,
+        skills,
+        projects,
+        experiences,
+        interestRoles,
+        resumeText
+      );
+
+      res.json(simulation);
+    } catch (error) {
+      console.error("Error in What-If Simulator:", error);
+      res.status(500).json({
+        message: "Failed to simulate career action",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
