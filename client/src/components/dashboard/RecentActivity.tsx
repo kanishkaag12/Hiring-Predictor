@@ -26,7 +26,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
                 <CardTitle className="text-sm font-bold opacity-60 uppercase tracking-widest">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                {activities.map((activity, index) => (
+                {activities?.map((activity, index) => (
                     <div key={index} className="flex items-center gap-3">
                         <div className="p-2 rounded-full bg-muted/50 text-muted-foreground">
                             {getIcon(activity.type)}

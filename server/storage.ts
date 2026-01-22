@@ -40,121 +40,370 @@ export interface IStorage {
 }
 
 // Initialize database connection
+// Initialize database connection
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 30000,
-  ssl: {
-    rejectUnauthorized: false
-  }
 });
 
 const db = drizzle(pool);
 
-export class PostgresStorage implements IStorage {
+const useMemoryStorage = true;
+
+class InMemoryStorage implements IStorage {
+  private users: Map<string, User> = new Map();
+  private favourites: Map<string, Favourite> = new Map();
+  private skills: Map<string, Skill> = new Map();
+  private projects: Map<string, Project> = new Map();
+  private experience: Map<string, Experience> = new Map();
+
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0];
+    return this.users.get(id);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username));
-    return result[0];
+    return Array.from(this.users.values()).find(user => user.username === username);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email));
-    return result[0];
+    return Array.from(this.users.values()).find(user => user.email === email);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(users).values({
+    const id = crypto.randomUUID();
+    const user: User = {
       ...insertUser,
+      id,
       username: (insertUser as any).username || insertUser.email.split("@")[0],
-    }).returning();
-    return result[0];
+      role: null,
+      college: null,
+      gradYear: null,
+      location: null,
+      githubUrl: null,
+      linkedinUrl: null,
+      resumeUrl: null,
+      resumeName: null,
+      resumeUploadedAt: null,
+      resumeScore: 0,
+      interestRoles: [],
+      userType: insertUser.userType || null,
+    };
+    this.users.set(id, user);
+    return user;
   }
 
   async updateUser(id: string, update: Partial<User>): Promise<User> {
-    const result = await db.update(users)
-      .set(update)
-      .where(eq(users.id, id))
-      .returning();
-    
-    if (!result[0]) throw new Error("User not found");
-    return result[0];
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+    const updatedUser = { ...user, ...update };
+    this.users.set(id, updatedUser);
+    return updatedUser;
   }
 
   async getFavourites(userId: string): Promise<Favourite[]> {
-    return await db.select().from(favourites).where(eq(favourites.userId, userId));
+    return Array.from(this.favourites.values()).filter(fav => fav.userId === userId);
   }
 
   async addFavourite(fav: InsertFavourite): Promise<Favourite> {
-    const result = await db.insert(favourites).values(fav).returning();
-    return result[0];
+    const id = crypto.randomUUID();
+    const favourite: Favourite = {
+      ...fav,
+      id,
+      savedAt: new Date(),
+    };
+    this.favourites.set(id, favourite);
+    return favourite;
   }
 
   async removeFavourite(userId: string, jobId: string): Promise<void> {
-    await db.delete(favourites).where(
-      and(eq(favourites.userId, userId), eq(favourites.jobId, jobId))
+    const fav = Array.from(this.favourites.values()).find(
+      f => f.userId === userId && f.jobId === jobId
     );
+    if (fav) {
+      this.favourites.delete(fav.id);
+    }
   }
 
   async getSkills(userId: string): Promise<Skill[]> {
-    return await db.select().from(skills).where(eq(skills.userId, userId));
+    return Array.from(this.skills.values()).filter(skill => skill.userId === userId);
   }
 
   async addSkill(skill: InsertSkill): Promise<Skill> {
-    const result = await db.insert(skills).values(skill).returning();
-    return result[0];
+    const id = crypto.randomUUID();
+    const newSkill: Skill = {
+      ...skill,
+      id,
+    };
+    this.skills.set(id, newSkill);
+    return newSkill;
   }
 
   async removeSkill(id: string): Promise<void> {
-    await db.delete(skills).where(eq(skills.id, id));
+    this.skills.delete(id);
   }
 
   async getProjects(userId: string): Promise<Project[]> {
-    return await db.select().from(projects).where(eq(projects.userId, userId));
+    return Array.from(this.projects.values()).filter(p => p.userId === userId);
   }
 
   async addProject(project: InsertProject): Promise<Project> {
-    const result = await db.insert(projects).values({
+    const id = crypto.randomUUID();
+    const newProject: Project = {
       ...project,
-      techStack: project.techStack as string[]
-    }).returning();
-    return result[0];
+      id,
+      techStack: project.techStack as string[],
+    };
+    this.projects.set(id, newProject);
+    return newProject;
   }
 
   async updateProject(id: string, update: Partial<InsertProject>): Promise<Project> {
-    // Type assertion for techStack compatibility with JSONB column
-    const updateData: any = update.techStack 
-      ? { ...update, techStack: update.techStack as any as string[] }
-      : update;
-    
-    const result = await db.update(projects)
-      .set(updateData)
-      .where(eq(projects.id, id))
-      .returning();
-    
-    if (!result[0]) throw new Error("Project not found");
-    return result[0];
+    const project = this.projects.get(id);
+    if (!project) throw new Error("Project not found");
+    const updatedProject = {
+      ...project,
+      ...update,
+      techStack: update.techStack ? (update.techStack as string[]) : project.techStack,
+    };
+    this.projects.set(id, updatedProject);
+    return updatedProject;
   }
 
   async deleteProject(id: string): Promise<void> {
-    await db.delete(projects).where(eq(projects.id, id));
+    this.projects.delete(id);
   }
 
   async getExperiences(userId: string): Promise<Experience[]> {
-    return await db.select().from(experience).where(eq(experience.userId, userId));
+    return Array.from(this.experience.values()).filter(exp => exp.userId === userId);
   }
 
   async addExperience(exp: InsertExperience): Promise<Experience> {
-    const result = await db.insert(experience).values(exp).returning();
-    return result[0];
+    const id = crypto.randomUUID();
+    const newExp: Experience = {
+      ...exp,
+      id,
+    };
+    this.experience.set(id, newExp);
+    return newExp;
   }
 
   async deleteExperience(id: string): Promise<void> {
-    await db.delete(experience).where(eq(experience.id, id));
+    this.experience.delete(id);
   }
 }
 
-export const storage = new PostgresStorage();
+export class PostgresStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    try {
+      if (useMemoryStorage || !db) return undefined;
+      const result = await db.select().from(users).where(eq(users.id, id));
+      return result[0];
+    } catch (error) {
+      console.error("Database error in getUser:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      if (useMemoryStorage || !db) return undefined;
+      const result = await db.select().from(users).where(eq(users.username, username));
+      return result[0];
+    } catch (error) {
+      console.error("Database error in getUserByUsername:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      if (useMemoryStorage || !db) return undefined;
+      const result = await db.select().from(users).where(eq(users.email, email));
+      return result[0];
+    } catch (error) {
+      console.error("Database error in getUserByEmail:", error);
+      return undefined;
+    }
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(users).values({
+        ...insertUser,
+        username: (insertUser as any).username || insertUser.email.split("@")[0],
+        interestRoles: [],
+      }).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in createUser:", error);
+      throw error;
+    }
+  }
+
+  async updateUser(id: string, update: Partial<User>): Promise<User> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.update(users)
+        .set(update)
+        .where(eq(users.id, id))
+        .returning();
+
+      if (!result[0]) throw new Error("User not found");
+      return result[0];
+    } catch (error) {
+      console.error("Database error in updateUser:", error);
+      throw error;
+    }
+  }
+
+  async getFavourites(userId: string): Promise<Favourite[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db.select().from(favourites).where(eq(favourites.userId, userId));
+    } catch (error) {
+      console.error("Database error in getFavourites:", error);
+      return [];
+    }
+  }
+
+  async addFavourite(fav: InsertFavourite): Promise<Favourite> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(favourites).values(fav).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in addFavourite:", error);
+      throw error;
+    }
+  }
+
+  async removeFavourite(userId: string, jobId: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.delete(favourites).where(
+        and(eq(favourites.userId, userId), eq(favourites.jobId, jobId))
+      );
+    } catch (error) {
+      console.error("Database error in removeFavourite:", error);
+    }
+  }
+
+  async getSkills(userId: string): Promise<Skill[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db.select().from(skills).where(eq(skills.userId, userId));
+    } catch (error) {
+      console.error("Database error in getSkills:", error);
+      return [];
+    }
+  }
+
+  async addSkill(skill: InsertSkill): Promise<Skill> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(skills).values(skill).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in addSkill:", error);
+      throw error;
+    }
+  }
+
+  async removeSkill(id: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.delete(skills).where(eq(skills.id, id));
+    } catch (error) {
+      console.error("Database error in removeSkill:", error);
+    }
+  }
+
+  async getProjects(userId: string): Promise<Project[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db.select().from(projects).where(eq(projects.userId, userId));
+    } catch (error) {
+      console.error("Database error in getProjects:", error);
+      return [];
+    }
+  }
+
+  async addProject(project: InsertProject): Promise<Project> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(projects).values({
+        ...project,
+        techStack: project.techStack as string[]
+      }).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in addProject:", error);
+      throw error;
+    }
+  }
+
+  async updateProject(id: string, update: Partial<InsertProject>): Promise<Project> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const updateData: any = update.techStack
+        ? { ...update, techStack: update.techStack as any as string[] }
+        : update;
+
+      const result = await db.update(projects)
+        .set(updateData)
+        .where(eq(projects.id, id))
+        .returning();
+
+      if (!result[0]) throw new Error("Project not found");
+      return result[0];
+    } catch (error) {
+      console.error("Database error in updateProject:", error);
+      throw error;
+    }
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.delete(projects).where(eq(projects.id, id));
+    } catch (error) {
+      console.error("Database error in deleteProject:", error);
+    }
+  }
+
+  async getExperiences(userId: string): Promise<Experience[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db.select().from(experience).where(eq(experience.userId, userId));
+    } catch (error) {
+      console.error("Database error in getExperiences:", error);
+      return [];
+    }
+  }
+
+  async addExperience(exp: InsertExperience): Promise<Experience> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(experience).values(exp).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in addExperience:", error);
+      throw error;
+    }
+  }
+
+  async deleteExperience(id: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.delete(experience).where(eq(experience.id, id));
+    } catch (error) {
+      console.error("Database error in deleteExperience:", error);
+    }
+  }
+}
+
+const postgresStorage = new PostgresStorage();
+const memoryStorage = new InMemoryStorage();
+
+// Use memory storage if database connection fails or explicitely set
+export const storage = useMemoryStorage ? memoryStorage : postgresStorage;

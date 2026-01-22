@@ -26,14 +26,34 @@ async function comparePasswords(supplied: string, stored: string) {
 const PostgresSessionStore = connectPg(session);
 
 export function setupAuth(app: Express) {
+  // Default to in-memory sessions unless explicitly forced to PG
+  const forcePg = process.env.USE_PG_SESSION === "true";
+
+  let sessionStore: session.Store;
+  if (!forcePg) {
+    sessionStore = new session.MemoryStore();
+    console.warn("[auth] Using in-memory session store (dev). Set USE_PG_SESSION=true to use Postgres.");
+  } else {
+    try {
+      const pgStore = new PostgresSessionStore({
+        pool,
+        createTableIfMissing: true,
+      });
+      pgStore.on("error", (err: any) => {
+        console.error("[auth] Session store error; consider disabling USE_PG_SESSION in dev", err);
+      });
+      sessionStore = pgStore;
+    } catch (err) {
+      console.error("[auth] Failed to init Postgres session store, falling back to memory", err);
+      sessionStore = new session.MemoryStore();
+    }
+  }
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "hirepulse-secret",
     resave: false,
     saveUninitialized: false,
-    store: new PostgresSessionStore({
-      pool,
-      createTableIfMissing: true,
-    }),
+    store: sessionStore,
     cookie: {
       secure: app.get("env") === "production",
       maxAge: 2 * 60 * 60 * 1000, // 2 hours
@@ -72,9 +92,15 @@ export function setupAuth(app: Express) {
   passport.deserializeUser(async (id: string, done) => {
     try {
       const user = await storage.getUser(id);
+      if (!user) {
+        // User session is invalid or deleted, clear it silently
+        return done(null, false);
+      }
       done(null, user);
     } catch (err) {
-      done(err);
+      // Log but don't throw - this prevents blocking unauthenticated users
+      console.warn("Deserialize user error for id:", id, err);
+      done(null, false);
     }
   });
 

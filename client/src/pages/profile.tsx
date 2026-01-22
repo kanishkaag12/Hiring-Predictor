@@ -10,14 +10,15 @@ import {
   FileText, Github, Linkedin, Mail, MapPin,
   GraduationCap, Briefcase, Plus, Trash2,
   Edit3, ExternalLink, Code, Layers, Info, CheckCircle2,
-  CloudLightning, TrendingUp
+  CloudLightning, TrendingUp, Target
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfile } from "@/hooks/useProfile";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogTrigger, DialogFooter
+  DialogTitle, DialogTrigger, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,13 +37,21 @@ export default function Profile() {
     addSkill, removeSkill,
     addProject, removeProject,
     addExperience, removeExperience,
-    updateLinkedin, updateGithub, uploadResume
+    updateLinkedin, updateGithub, uploadResume,
+    updateInterestRoles
   } = useProfile();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState("identity");
   const [linkedinModalOpen, setLinkedinModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState(profile?.userType || "");
+
+  useEffect(() => {
+    if (profile?.userType) {
+      setSelectedUserType(profile.userType);
+    }
+  }, [profile?.userType]);
 
   // AI Insights State
   const [insights, setInsights] = useState<any>(null);
@@ -158,9 +167,29 @@ export default function Profile() {
                             <Input id="role" name="role" defaultValue={profile.role || ""} />
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="college">University</Label>
-                          <Input id="college" name="college" defaultValue={profile.college || ""} />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="college">University</Label>
+                            <Input id="college" name="college" defaultValue={profile.college || ""} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="userType">Career Status</Label>
+                            <Select
+                              value={selectedUserType}
+                              onValueChange={(val) => setSelectedUserType(val)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Student">Student</SelectItem>
+                                <SelectItem value="Working Professional">Working Professional</SelectItem>
+                                <SelectItem value="Fresher">Fresher</SelectItem>
+                                <SelectItem value="Career Switcher">Career Switcher</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <input type="hidden" name="userType" value={selectedUserType} />
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -206,6 +235,95 @@ export default function Profile() {
           <div className="mt-8">
             {/* TAB 1: IDENTITY (PERSONAL & PROJECTS) */}
             <TabsContent value="identity" className="space-y-8 mt-0 border-none p-0 outline-none">
+
+              {/* Interest Roles Section (Zero-Assumption) */}
+              <Card className="border-border/40 bg-card/40 backdrop-blur-md mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-primary" />
+                    Interest Roles
+                  </CardTitle>
+                  <CardDescription>
+                    {(!profile || (profile.interestRoles?.length || 0) === 0)
+                      ? "Interest roles help HirePulse generate role-specific insights. Add roles you are actively aiming for."
+                      : "We generate separate intelligence for each of your selected roles."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(!profile || (profile.interestRoles?.length || 0) === 0) ? (
+                    <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-border/40 rounded-3xl bg-muted/5 group hover:border-primary/40 transition-colors">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <Target className="w-6 h-6 text-primary" />
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground mb-4">No interest roles added yet.</p>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button className="rounded-xl shadow-lg shadow-primary/20 gap-2 font-bold">
+                            <Plus className="w-4 h-4" /> Add Interest Roles
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px]">
+                          <DialogHeader>
+                            <DialogTitle>Select Interest Roles</DialogTitle>
+                            <DialogDescription>Choose 2-4 roles you are targeting. This data drives your dashboard intelligence.</DialogDescription>
+                          </DialogHeader>
+                          <RoleSelector
+                            currentRoles={profile?.interestRoles || []}
+                            onSave={(roles) => updateInterestRoles.mutate(roles)}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {profile.interestRoles?.map((role) => (
+                          <div key={role} className="flex justify-between items-center p-4 rounded-2xl border border-primary/20 bg-primary/5 group">
+                            <span className="text-sm font-bold">{role}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full opacity-60 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                const updated = profile.interestRoles?.filter(r => r !== role) || [];
+                                updateInterestRoles.mutate(updated);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2">
+                        <p className="text-xs text-muted-foreground font-medium flex items-center gap-2">
+                          <Info className="w-3 h-3 text-primary" />
+                          {(profile.interestRoles?.length || 0) < 2
+                            ? "Select at least 2 roles to unlock dashboard intelligence."
+                            : "Your profile is being analyzed for these roles."}
+                        </p>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="rounded-xl gap-2 font-bold px-4 hover:bg-primary/5">
+                              <Plus className="w-3 h-3" /> Manage Roles
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                              <DialogTitle>Update Interest Roles</DialogTitle>
+                            </DialogHeader>
+                            <RoleSelector
+                              currentRoles={profile.interestRoles || []}
+                              onSave={(roles) => updateInterestRoles.mutate(roles)}
+                            />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
                   {/* Projects Section */}
@@ -626,7 +744,7 @@ export default function Profile() {
                       <p className="font-bold text-lg animate-pulse">Consulting AI Career Expert...</p>
                     </div>
                   ) : insights ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-6"
@@ -663,8 +781,8 @@ export default function Profile() {
                         </div>
                       </div>
 
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="w-full rounded-xl border-dashed"
                         onClick={generateInsights}
                       >
@@ -676,7 +794,7 @@ export default function Profile() {
                       <div className="max-w-[500px] mx-auto space-y-2">
                         <p className="text-muted-foreground">Our AI model will evaluate your skills, projects, and experiences against current industry standards to provide a personalized career roadmap.</p>
                       </div>
-                      <Button 
+                      <Button
                         onClick={generateInsights}
                         className="px-8 rounded-xl h-12 text-base font-bold shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
                       >
@@ -786,23 +904,23 @@ export default function Profile() {
                 <Card className="border-none bg-gradient-to-br from-primary/10 to-indigo-500/5 shadow-inner">
                   <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
                     {(() => {
-                      const totalScore = 
-                        (profile.skills?.length || 0) * 5 + 
-                        (profile.projects?.length || 0) * 10 + 
+                      const totalScore =
+                        (profile.skills?.length || 0) * 5 +
+                        (profile.projects?.length || 0) * 10 +
                         (profile.experiences?.length || 0) * 15 +
                         (profile.resumeUrl ? 10 : 0) +
                         (profile.githubUrl ? 5 : 0) +
                         (profile.linkedinUrl ? 5 : 0);
-                      
+
                       const maxScore = 100; // Maximum possible score
                       const completionPercentage = Math.min(100, Math.round((totalScore / maxScore) * 100));
-                      
+
                       // Determine strength level and message
                       let strengthLevel = "Getting Started";
                       let strengthColor = "text-orange-400";
                       let message = "Add skills, projects, and experiences to boost your profile!";
                       let icon = "🚀";
-                      
+
                       if (completionPercentage >= 80) {
                         strengthLevel = "Excellent";
                         strengthColor = "text-emerald-400";
@@ -824,7 +942,7 @@ export default function Profile() {
                         message = "You've started! Keep adding to improve your visibility.";
                         icon = "🔨";
                       }
-                      
+
                       return (
                         <>
                           <div className="w-24 h-24 rounded-full bg-background/80 flex items-center justify-center shadow-xl text-4xl">
@@ -906,6 +1024,162 @@ export default function Profile() {
         </Dialog>
       </div>
     </Layout>
+  );
+}
+
+function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave: (roles: string[]) => void }) {
+  const [selected, setSelected] = useState<string[]>(currentRoles);
+  const [search, setSearch] = useState("");
+  const { toast } = useToast();
+
+  const suggestions = [
+    "Software Engineer", "Frontend Developer", "Backend Developer", "Fullstack Developer",
+    "Data Scientist", "Data Analyst", "Product Manager", "UI/UX Designer",
+    "DevOps Engineer", "Cloud Architect", "Machine Learning Engineer", "Mobile App Developer",
+    "Cybersecurity Analyst", "Solution Architect", "Quality Assurance", "Marketing Associate",
+    "Financial Analyst", "HR Executive", "Business Analyst", "Operations Manager"
+  ];
+
+  const filteredSuggestions = suggestions.filter(role =>
+    role.toLowerCase().includes(search.toLowerCase()) && !selected.includes(role)
+  ).slice(0, 6);
+
+  const toggleRole = (role: string) => {
+    if (selected.includes(role)) {
+      setSelected(selected.filter(r => r !== role));
+    } else {
+      if (selected.length >= 4) {
+        toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
+        return;
+      }
+      setSelected([...selected, role]);
+      setSearch("");
+    }
+  };
+
+  const handleCustomAdd = () => {
+    if (!search.trim()) return;
+    if (selected.includes(search.trim())) {
+      setSearch("");
+      return;
+    }
+    if (selected.length >= 4) {
+      toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
+      return;
+    }
+    setSelected([...selected, search.trim()]);
+    setSearch("");
+  };
+
+  const handleConfirm = () => {
+    if (selected.length < 2) {
+      toast({ title: "Insufficient Selection", description: "Please select at least 2 roles.", variant: "destructive" });
+      return;
+    }
+    onSave(selected);
+  };
+
+  return (
+    <div className="space-y-6 py-4">
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Search or add custom role..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCustomAdd())}
+            className="rounded-xl"
+          />
+          {search && (
+            <Button onClick={handleCustomAdd} variant="secondary" className="rounded-xl">
+              Add
+            </Button>
+          )}
+        </div>
+
+        {/* Selected Roles */}
+        <div className="flex flex-wrap gap-2">
+          <AnimatePresence>
+            {selected.map(role => (
+              <motion.div
+                key={role}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+              >
+                <Badge variant="default" className="pl-3 pr-1 py-1.5 gap-1 rounded-full bg-primary text-primary-foreground group">
+                  {role}
+                  <button
+                    onClick={() => toggleRole(role)}
+                    className="p-0.5 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <Plus className="w-3 h-3 rotate-45" />
+                  </button>
+                </Badge>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* Suggestions */}
+        {search && filteredSuggestions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Suggestions</p>
+            <div className="flex flex-wrap gap-2">
+              {filteredSuggestions.map(role => (
+                <button
+                  key={role}
+                  onClick={() => toggleRole(role)}
+                  className="px-3 py-1.5 rounded-full border border-border/40 hover:border-primary/40 hover:bg-primary/5 text-sm transition-all text-muted-foreground hover:text-foreground"
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Popular Tags (only if nothing searched) */}
+        {!search && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Common Career Paths</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.slice(0, 8).map(role => (
+                <button
+                  key={role}
+                  onClick={() => toggleRole(role)}
+                  disabled={selected.includes(role)}
+                  className={`
+                     px-3 py-1.5 rounded-full border text-sm transition-all
+                     ${selected.includes(role)
+                      ? "border-primary bg-primary/10 text-primary opacity-50 cursor-not-allowed"
+                      : "border-border/40 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-foreground"}
+                   `}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3 pt-6 border-t border-border/40">
+        <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
+          <span>{selected.length} of 4 selected</span>
+          {selected.length < 2 && <span className="text-rose-400">Min 2 required</span>}
+        </div>
+        <DialogFooter>
+          <Button
+            className="w-full rounded-xl h-12 font-bold shadow-lg shadow-primary/10"
+            onClick={handleConfirm}
+            disabled={selected.length < 2}
+          >
+            Confirm & Initialize AI
+          </Button>
+        </DialogFooter>
+      </div>
+    </div>
   );
 }
 
