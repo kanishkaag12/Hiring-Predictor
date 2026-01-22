@@ -6,11 +6,11 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 
 interface HiringPulseHeroProps {
     score: number;
-    trend: number;
+    trend?: number;
     status: "Strong" | "Improving" | "Needs Work";
 }
 
-export function HiringPulseHero({ score, trend, status }: HiringPulseHeroProps) {
+export function HiringPulseHero({ score, trend = 0, status }: HiringPulseHeroProps) {
     const data = [
         { value: score },
         { value: 100 - score },

@@ -29,7 +29,7 @@ export function MarketSnapshot({ data }: MarketSnapshotProps) {
         },
         {
             title: "High Competition",
-            value: data.highCompetitionRoles.join(", "),
+            value: data.highCompetitionRoles?.join(", ") || "N/A",
             icon: Flame,
             color: "text-rose-400",
             bg: "bg-rose-500/10",

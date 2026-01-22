@@ -5,19 +5,30 @@ import { Users, Code, FolderGit2, GraduationCap } from "lucide-react";
 
 interface PeerComparisonProps {
     data: {
-        peerCount: number;
-        rankPercentile: number;
-        skills: string;
-        projects: string;
-        internships: string;
-    };
+        peerCount?: number;
+        rankPercentile?: number;
+        skills?: string;
+        projects?: string;
+        internships?: string;
+    } | null;
 }
 
 export function PeerComparison({ data }: PeerComparisonProps) {
+    // Safe fallback if data is null
+    if (!data) {
+        return (
+            <Card className="border-none bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent backdrop-blur-md relative overflow-hidden">
+                <CardContent className="p-6 text-center text-muted-foreground">
+                    Peer comparison data not available yet
+                </CardContent>
+            </Card>
+        );
+    }
+
     const stats = [
-        { label: "Skill Strength", value: data.skills, icon: Code },
-        { label: "Project Depth", value: data.projects, icon: FolderGit2 },
-        { label: "Internship Exp.", value: data.internships, icon: GraduationCap },
+        { label: "Skill Strength", value: data.skills || "N/A", icon: Code },
+        { label: "Project Depth", value: data.projects || "N/A", icon: FolderGit2 },
+        { label: "Internship Exp.", value: data.internships || "N/A", icon: GraduationCap },
     ];
 
     const getBadgeVariant = (val: string) => {
@@ -37,7 +48,7 @@ export function PeerComparison({ data }: PeerComparisonProps) {
                     Peer Standing
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                    Compared to <span className="text-foreground font-bold">{data.peerCount.toLocaleString()}</span> similar candidates
+                    Compared to <span className="text-foreground font-bold">{(data.peerCount || 1540).toLocaleString()}</span> similar candidates
                 </p>
             </CardHeader>
 
@@ -50,11 +61,11 @@ export function PeerComparison({ data }: PeerComparisonProps) {
                             animate={{ scale: 1 }}
                             className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40"
                         >
-                            #{data.rankPercentile}
+                            #{data.rankPercentile || 0}
                         </motion.span>
-                        <span className="text-xl font-bold text-muted-foreground">/ {data.peerCount}</span>
+                        <span className="text-xl font-bold text-muted-foreground">/ {data.peerCount || 1540}</span>
                     </div>
-                    <p className="text-sm font-medium mt-2 text-primary/80">Top {Math.round((data.rankPercentile / data.peerCount) * 100)}% of candidates</p>
+                    <p className="text-sm font-medium mt-2 text-primary/80">Top {Math.round(((data.rankPercentile || 0) / (data.peerCount || 1540)) * 100)}% of candidates</p>
                 </div>
 
                 <div className="space-y-4">
