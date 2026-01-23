@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from "wouter";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Twitter, Linkedin, Github, Mail, Phone, MapPin } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import './landing.css';
 
 export default function LandingPage() {
@@ -14,13 +15,13 @@ export default function LandingPage() {
     // Type insight text with dramatic reveal
     setTimeout(() => {
       const insight1 = document.getElementById('insight-text-1');
-      if (insight1) typeWriter(insight1, "You're not getting rejected.", 30);
+      if (insight1) typeWriter(insight1, "Your potential is data-backed.", 30);
       document.getElementById('insight1')?.classList.add('active');
     }, 800);
 
     setTimeout(() => {
       const insight2 = document.getElementById('insight-text-2');
-      if (insight2) typeWriter(insight2, "You're applying blind.", 30);
+      if (insight2) typeWriter(insight2, "Predict your next breakthrough.", 30);
       document.getElementById('insight2')?.classList.add('active');
     }, 2000);
 
@@ -90,7 +91,7 @@ export default function LandingPage() {
           pointElement.style.zIndex = '10';
         } else {
           pointElement.style.transform = 'scale(1)';
-          pointElement.style.zIndex = '1'; // Note: inline styles might be overridden by CSS hover states if not careful, but this matches original JS logic
+          pointElement.style.zIndex = '1';
         }
       });
     };
@@ -130,11 +131,15 @@ export default function LandingPage() {
   const scrollToHow = () => scrollToSection('how-it-works');
 
   const handleLogin = () => {
-    setLocation("/dashboard");
+    setLocation("/auth");
   };
 
   const handleSignup = () => {
-    setLocation("/dashboard");
+    setLocation("/auth");
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === "light" ? "dark" : "light");
   };
 
   return (
@@ -143,7 +148,7 @@ export default function LandingPage() {
       <header className="main-header">
         <div className="header-container">
           <div className="logo">
-            <span className="logo-text">HirePulse</span>
+            <span className="logo-text">HIREPULSE</span>
           </div>
           <nav className="header-nav-links">
             <button className="nav-link" onClick={() => scrollToSection('hero')}>Home</button>
@@ -161,10 +166,29 @@ export default function LandingPage() {
               aria-label="Toggle Theme"
             >
               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+
+          <nav className="header-nav-links">
+            <a href="#hero" className="nav-link">Home</a>
+            <a href="#how-it-works" className="nav-link">About</a>
+            <a href="#" className="nav-link">Services</a>
+            <a href="#" className="nav-link">Team</a>
+            <a href="#" className="nav-link">Testimonials</a>
+            <a href="#" className="nav-link">Pricing</a>
+            <a href="#" className="nav-link">Contact</a>
+          </nav>
+
+          <div className="header-actions">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-zinc-800 transition-colors"
+              aria-label="Toggle theme"
+            >
+              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-yellow-500" />
+              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-slate-100" />
             </button>
             <button className="btn-login" onClick={handleLogin}>Login</button>
             <button className="btn-signup" onClick={handleSignup}>Sign Up</button>
-          </nav>
+          </div>
         </div>
       </header>
 
@@ -260,19 +284,19 @@ export default function LandingPage() {
 
         {/* Floating Data Points - Enhanced */}
         <div className="floating-data">
-          <div className="data-point pulse-1" style={{ top: '20%', left: '8%' }}>
+          <div className="data-point pulse-1">
             <div className="point-value" data-target="92">0</div>
             <div className="point-label">Match</div>
           </div>
-          <div className="data-point pulse-2" style={{ top: '30%', right: '8%' }}>
+          <div className="data-point pulse-2">
             <div className="point-value" data-target="1247">0</div>
             <div className="point-label">Apps</div>
           </div>
-          <div className="data-point pulse-3" style={{ bottom: '25%', left: '15%' }}>
+          <div className="data-point pulse-3">
             <div className="point-value" data-target="68">0</div>
             <div className="point-label">Chance</div>
           </div>
-          <div className="data-point pulse-4" style={{ top: '55%', right: '8%' }}>
+          <div className="data-point pulse-4">
             <div className="point-value" data-target="78">0</div>
             <div className="point-label">ATS Pass</div>
           </div>
@@ -319,19 +343,19 @@ export default function LandingPage() {
                     <div className="scan-line"></div>
                     <div className="scan-line scan-line-2"></div>
                   </div>
+                  <div className="data-fragments">
+                    {[...Array(12)].map((_, i) => (
+                      <div key={i} className={`fragment fragment-${i + 1}`}></div>
+                    ))}
+                  </div>
                   <div className="profile-layers">
                     <div className="layer layer-1"></div>
                     <div className="layer layer-2"></div>
                     <div className="layer layer-3"></div>
                   </div>
-                  <div className="scan-indicators">
-                    <div className="indicator indicator-1"></div>
-                    <div className="indicator indicator-2"></div>
-                    <div className="indicator indicator-3"></div>
-                    <div className="indicator indicator-4"></div>
-                  </div>
                   <div className="scan-progress">
                     <div className="progress-bar"></div>
+                    <div className="progress-status">Optimizing Profile...</div>
                   </div>
                 </div>
               </div>
@@ -350,29 +374,38 @@ export default function LandingPage() {
               </div>
               <div className="step-visual">
                 <div className="visual-box pattern-analysis-box">
+                  <div className="tech-grid"></div>
                   <svg className="network-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <linearGradient id="nodeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" style={{ stopColor: '#00d9ff', stopOpacity: 1 }} />
                         <stop offset="100%" style={{ stopColor: '#7c3aed', stopOpacity: 1 }} />
                       </linearGradient>
-                      <linearGradient id="lineGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style={{ stopColor: '#00d9ff', stopOpacity: 0.3 }} />
-                        <stop offset="50%" style={{ stopColor: '#7c3aed', stopOpacity: 0.8 }} />
-                        <stop offset="100%" style={{ stopColor: '#00d9ff', stopOpacity: 0.3 }} />
-                      </linearGradient>
+                      <filter id="glow">
+                        <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                        <feMerge>
+                          <feMergeNode in="coloredBlur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
                     </defs>
-                    <line className="svg-line line-1" x1="50" y1="50" x2="150" y2="80" />
-                    <line className="svg-line line-2" x1="100" y1="100" x2="150" y2="150" />
-                    <line className="svg-line line-3" x1="50" y1="150" x2="100" y2="100" />
-                    <line className="svg-line line-4" x1="150" y1="50" x2="100" y2="100" />
-                    <circle className="svg-node node-1" cx="50" cy="50" r="8" />
-                    <circle className="svg-node node-2" cx="150" cy="80" r="8" />
-                    <circle className="svg-node node-3" cx="100" cy="100" r="10" />
-                    <circle className="svg-node node-4" cx="150" cy="150" r="8" />
-                    <circle className="svg-node node-5" cx="50" cy="150" r="8" />
+                    <g className="network-links">
+                      <line className="svg-line line-1" x1="40" y1="40" x2="160" y2="70" />
+                      <line className="svg-line line-2" x1="100" y1="100" x2="160" y2="160" />
+                      <line className="svg-line line-3" x1="40" y1="160" x2="100" y2="100" />
+                      <line className="svg-line line-4" x1="160" y1="40" x2="100" y2="100" />
+                      <line className="svg-line line-5" x1="40" y1="100" x2="160" y2="100" />
+                    </g>
+                    <g className="network-nodes">
+                      <circle className="svg-node node-1" cx="40" cy="40" r="6" filter="url(#glow)" />
+                      <circle className="svg-node node-2" cx="160" cy="70" r="6" filter="url(#glow)" />
+                      <circle className="svg-node node-3" cx="100" cy="100" r="8" filter="url(#glow)" />
+                      <circle className="svg-node node-4" cx="160" cy="160" r="6" filter="url(#glow)" />
+                      <circle className="svg-node node-5" cx="40" cy="160" r="6" filter="url(#glow)" />
+                      <circle className="svg-node node-6" cx="100" cy="40" r="5" filter="url(#glow)" />
+                    </g>
                   </svg>
-                  <div className="pattern-pulse"></div>
+                  <div className="pattern-data-pulse"></div>
                 </div>
               </div>
             </div>
@@ -600,8 +633,8 @@ export default function LandingPage() {
         <div className="container">
           <div className="cta-content">
             <span className="cta-tag">[READY TO UNLOCK INSIGHT?]</span>
-            <h2>Stop applying blind.</h2>
-            <p>Know your real chances before you invest your time.</p>
+            <h2>Stop applying blindly.</h2>
+            <p>Know your chances before you invest your time.</p>
             <div className="cta-stats">
               <div className="cta-stat">
                 <div className="cta-stat-value">2.3M+</div>
@@ -620,6 +653,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
       <footer className="landing-footer">
         <div className="footer-wave">
           <svg data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
@@ -651,6 +686,10 @@ export default function LandingPage() {
               <a href="#" aria-label="Twitter"><Twitter size={20} /></a>
               <a href="#" aria-label="LinkedIn"><Linkedin size={20} /></a>
               <a href="#" aria-label="GitHub"><Github size={20} /></a>
+            <div className="footer-contact-info">
+              <p><strong>Email:</strong> support@hirepulse.ai</p>
+              <p><strong>Phone:</strong> +1 (555) 000-1234</p>
+              <p><strong>Office:</strong> 123 AI Boulevard, Tech City</p>
             </div>
           </div>
 
@@ -662,6 +701,11 @@ export default function LandingPage() {
                 <li><a href="#" onClick={() => scrollToSection('how-it-works')}>How it Works</a></li>
                 <li><a href="#" onClick={() => scrollToSection('pricing')}>Pricing</a></li>
                 <li><a href="#" onClick={() => scrollToSection('testimonials')}>Success Stories</a></li>
+                <li><a href="#">Features</a></li>
+                <li><a href="#">Pricing</a></li>
+                <li><a href="#">Enterprise</a></li>
+                <li><a href="#">Success Stories</a></li>
+                <li><a href="#">Security</a></li>
               </ul>
             </div>
 
@@ -682,6 +726,36 @@ export default function LandingPage() {
                 <p><Phone size={16} /> +1 (555) 000-1234</p>
                 <p><MapPin size={16} /> 123 AI Boulevard, Tech City</p>
               </div>
+              <h4>Company</h4>
+              <ul>
+                <li><a href="#">About Us</a></li>
+                <li><a href="#">Careers</a></li>
+                <li><a href="#">Blog</a></li>
+                <li><a href="#">Contact</a></li>
+                <li><a href="#">Press Kit</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-links">
+              <h4>Resources</h4>
+              <ul>
+                <li><a href="#">Help Center</a></li>
+                <li><a href="#">API Docs</a></li>
+                <li><a href="#">Community</a></li>
+                <li><a href="#">Webinars</a></li>
+                <li><a href="#">Partners</a></li>
+              </ul>
+            </div>
+
+            <div className="footer-links">
+              <h4>Legal</h4>
+              <ul>
+                <li><a href="#">Privacy Policy</a></li>
+                <li><a href="#">Terms of Service</a></li>
+                <li><a href="#">Cookie Policy</a></li>
+                <li><a href="#">Data Processing</a></li>
+                <li><a href="#">Trust Center</a></li>
+              </ul>
             </div>
           </div>
         </div>
@@ -691,6 +765,14 @@ export default function LandingPage() {
             <div className="footer-bottom-flex">
               <p className="copyright">&copy; {new Date().getFullYear()} HiroPulse. All rights reserved.</p>
             </div>
+          <div className="copyright">
+            &copy; {new Date().getFullYear()} HirePulse Inc. All rights reserved.
+          </div>
+          <div className="footer-social">
+            <a href="#" aria-label="Twitter">Twitter</a>
+            <a href="#" aria-label="LinkedIn">LinkedIn</a>
+            <a href="#" aria-label="GitHub">GitHub</a>
+            <a href="#" aria-label="Discord">Discord</a>
           </div>
         </div>
       </footer>
