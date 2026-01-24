@@ -166,8 +166,6 @@ export default function LandingPage() {
             <button className="nav-link" onClick={() => scrollToSection('how-it-works')}>About</button>
             <button className="nav-link" onClick={() => scrollToSection('services')}>Services</button>
             <button className="nav-link" onClick={() => scrollToSection('team')}>Team</button>
-            <button className="nav-link" onClick={() => scrollToSection('testimonials')}>Testimonials</button>
-            <button className="nav-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
             <button className="nav-link" onClick={() => scrollToSection('contact')}>Contact</button>
           </nav>
 
@@ -544,6 +542,18 @@ export default function LandingPage() {
               <h3>Direct Matchmaking</h3>
               <p>Direct connections to recruiters looking for profiles exactly like yours.</p>
             </div>
+            <div className="service-card">
+              <h3>Smart Resume Builder</h3>
+              <p>Create ATS-friendly resumes that automatically adapt to job descriptions.</p>
+            </div>
+            <div className="service-card">
+              <h3>Salary Insights</h3>
+              <p>Know your worth with data-backed salary predictions for your role and experience.</p>
+            </div>
+            <div className="service-card">
+              <h3>Interview Prep</h3>
+              <p>AI-generated interview questions based on your specific job applications.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -566,47 +576,21 @@ export default function LandingPage() {
               <h4>Industry Veterans</h4>
               <p>Guiding our AI with decades of recruitment experience.</p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="testimonials" id="testimonials">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-tag">[SUCCESS STORIES]</span>
-            <h2>Proven Results</h2>
-          </div>
-          <div className="testimonials-grid">
-            <div className="testimonial">
-              <p>"HirePulse changed my strategy. I stopped guessing and started applying where I actually had a shot."</p>
-              <span>- Tech Lead @ Fortune 500</span>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>AI Research Lead</h4>
+              <p>Pushing the boundaries of predictive hiring models.</p>
+            </div>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>UX Design Head</h4>
+              <p>Crafting intuitive experiences for job seekers.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section className="pricing" id="pricing">
-        <div className="container">
-          <div className="section-header">
-            <span className="section-tag">[PLANS]</span>
-            <h2>Transparent Pricing</h2>
-          </div>
-          <div className="pricing-grid">
-            <div className="price-card">
-              <h3>Free</h3>
-              <div className="price">$0</div>
-              <p>Basic analysis and 3 chances per month.</p>
-            </div>
-            <div className="price-card featured">
-              <h3>Pro</h3>
-              <div className="price">$19<span>/mo</span></div>
-              <p>Unlimited analysis, deep insights, and priority support.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* Contact Section */}
       <section className="contact" id="contact">
@@ -687,8 +671,6 @@ export default function LandingPage() {
               <ul>
                 <li><button className="footer-btn" onClick={() => scrollToSection('hero')}>Features</button></li>
                 <li><button className="footer-btn" onClick={() => scrollToSection('how-it-works')}>How it Works</button></li>
-                <li><button className="footer-btn" onClick={() => scrollToSection('pricing')}>Pricing</button></li>
-                <li><button className="footer-btn" onClick={() => scrollToSection('testimonials')}>Success Stories</button></li>
               </ul>
             </div>
 

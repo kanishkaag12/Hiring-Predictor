@@ -1,9 +1,47 @@
 /* Landing Page Styles - Scoped */
+.landing-page .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 3rem;
+}
+
+.landing-page .service-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 2.5rem;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.landing-page .service-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-primary);
+    box-shadow: 0 10px 30px rgba(0, 217, 255, 0.1);
+}
+
+.landing-page .service-card h3 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.landing-page .service-card p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
 
 .landing-page {
     width: 100%;
     min-height: 100vh;
     /* Moved variables here to scope them */
+    /* Restore Deep Dark Defaults */
     --bg-dark: #0d0d12;
     --bg-darker: #08080b;
     --bg-card: #141419;
@@ -25,24 +63,23 @@
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Light Theme Overrides */
-/* Light Theme Overrides - Professional clean look */
+/* Light Theme Overrides - Map to Global Vars */
 [data-theme='light'] .landing-page {
-    --bg-dark: #f0f9ff;
-    --bg-darker: #e0f2fe;
-    --bg-card: #f8fafc;
-    --text-primary: #0f172a;
-    --text-secondary: #334155;
-    --text-muted: #64748b;
-    --border-color: #cbd5e1;
-    --border-light: #e2e8f0;
-    --card-bg: #ffffff;
+    --bg-dark: hsl(var(--background));
+    --bg-darker: hsl(var(--background));
+    --bg-card: hsl(var(--card));
+    --text-primary: hsl(var(--foreground));
+    --text-secondary: hsl(var(--muted-foreground));
+    --border-color: hsl(var(--border));
+    --border-light: hsl(var(--border));
+    --footer-bg: hsl(var(--background));
     --glow-primary: rgba(0, 217, 255, 0);
     --glow-secondary: rgba(124, 58, 237, 0);
-    --footer-bg: #f8fafc;
-    /* Light gray for light mode */
-    --footer-text: #0f172a;
 }
+
+/* Light Theme Overrides */
+/* Light Theme Overrides - Professional clean look */
+/* Light Theme Overrides - Removed as now handled globally */
 
 [data-theme='light'] .landing-page .landing-footer {
     background: var(--footer-bg);
@@ -203,40 +240,13 @@
         linear-gradient(180deg, #f8fafc 0%, #f0f9ff 100%) !important;
 }
 
+/* Light Mode cleanup - these are handled by vars now */
 [data-theme='light'] .landing-page .dashboard-panel,
 [data-theme='light'] .landing-page .data-point,
 [data-theme='light'] .landing-page .signal,
 [data-theme='light'] .landing-page .reveal-card {
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 217, 255, 0.3);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08);
-    color: var(--text-primary);
-}
-
-[data-theme='light'] .landing-page .dashboard-panel.top-left,
-[data-theme='light'] .landing-page .dashboard-panel.top-right {
-    background: rgba(255, 255, 255, 0.9) !important;
-}
-
-[data-theme='light'] .landing-page .insight-prefix {
-    color: #0369a1;
-}
-
-[data-theme='light'] .landing-page .cta-secondary {
-    background: rgba(255, 255, 255, 0.6);
-}
-
-[data-theme='light'] .landing-page .section-header h2,
-[data-theme='light'] .landing-page .reveal-header h2,
-[data-theme='light'] .landing-page .final-cta h2 {
-    color: #0f172a !important;
-}
-
-[data-theme='light'] .landing-page .reveal-card:hover {
-    background: #ffffff !important;
-    box-shadow: 0 12px 48px rgba(0, 217, 255, 0.1);
-    border-color: var(--accent-primary);
+    /* Ensure they use the card var */
+    background: var(--bg-card) !important;
 }
 
 /* Header Layout Refinement */
@@ -283,7 +293,8 @@
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(13, 13, 18, 0.95);
+    z-index: 1000;
+    background: var(--bg-dark);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-light);
     padding: 1rem 0;
@@ -367,7 +378,7 @@
     background:
         radial-gradient(ellipse at 30% 20%, rgba(0, 217, 255, 0.08) 0%, transparent 50%),
         radial-gradient(ellipse at 70% 80%, rgba(124, 58, 237, 0.06) 0%, transparent 50%),
-        linear-gradient(180deg, #0d0d12 0%, #08080b 100%);
+        linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
     padding-top: 100px;
     padding-bottom: 50px;
 }
@@ -484,7 +495,7 @@
 
 .landing-page .dashboard-panel {
     position: absolute;
-    background: rgba(13, 13, 18, 0.98);
+    background: var(--bg-card);
     backdrop-filter: blur(25px);
     border: 1px solid rgba(0, 217, 255, 0.3);
     padding: 1.75rem;
@@ -733,7 +744,7 @@
 }
 
 .landing-page .cta-secondary {
-    background: rgba(20, 20, 25, 0.6);
+    background: var(--bg-card);
     color: var(--text-primary);
     border: 1.5px solid var(--border-light);
     backdrop-filter: blur(10px);
@@ -781,7 +792,7 @@
 }
 
 .landing-page .signal {
-    background: rgba(20, 20, 25, 0.85);
+    background: var(--bg-card);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border-light);
     padding: 1.5rem 1.75rem;
