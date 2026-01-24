@@ -13,15 +13,18 @@ import {
   Minus,
   Star
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { AnalysisModal } from "./analysis-modal";
 import { useFavourites } from "@/hooks/useFavourites";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 
 interface JobCardProps {
   job: any;
+  isGuest?: boolean;
 }
 
 /* ---------------- APPLY SIGNAL UI ---------------- */
@@ -50,8 +53,12 @@ function getApplySignalUI(signal?: string) {
 
 /* ---------------- JOB CARD ---------------- */
 
-export default function JobCard({ job }: JobCardProps) {
+export default function JobCard({ job, isGuest = false }: JobCardProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const { user } = useAuth();
+  
   // ✅ SAFELY read analysis
   const analysis = job.analysis ?? null;
 
@@ -81,7 +88,18 @@ export default function JobCard({ job }: JobCardProps) {
   const { isStarred, addFavourite, removeFavourite } = useFavourites();
   const starred = isStarred(job.id);
 
+  // Handle star toggle with auth check
   const toggleStar = () => {
+    if (isGuest) {
+      toast({
+        title: "Sign in to save jobs",
+        description: "Create an account to save your favorite opportunities and track applications.",
+        variant: "default",
+      });
+      setLocation("/auth");
+      return;
+    }
+
     if (starred) {
       removeFavourite.mutate(job.id);
     } else {
@@ -204,14 +222,36 @@ export default function JobCard({ job }: JobCardProps) {
         <Button
           variant="outline"
           className="w-full h-11 justify-center gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-200 group"
-          onClick={() => setShowAnalysis(true)}
+          onClick={() => {
+            if (isGuest) {
+              toast({
+                title: "Sign in to analyze",
+                description: "Get detailed insights about your chances when you sign in.",
+                variant: "default",
+              });
+              setLocation("/auth");
+              return;
+            }
+            setShowAnalysis(true);
+          }}
         >
           <BrainCircuit className="w-4 h-4 group-hover:text-primary transition-colors" />
           Analyze My Chances
         </Button>
         <Button
           className="w-full h-11 justify-center gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/10 transition-all duration-200"
-          onClick={() => window.open(job.applyUrl, '_blank')}
+          onClick={() => {
+            if (isGuest) {
+              toast({
+                title: "Sign in to apply",
+                description: "Create an account to submit your application.",
+                variant: "default",
+              });
+              setLocation("/auth");
+              return;
+            }
+            window.open(job.applyUrl, '_blank');
+          }}
         >
           Apply Now
           <ExternalLink className="w-4 h-4" />

@@ -8,7 +8,8 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import JobDetails from "@/pages/job-details";
 import Profile from "@/pages/profile";
-import Jobs from "@/pages/jobs";
+import PublicJobsPage from "@/pages/public-jobs";
+import AppJobsPage from "@/pages/app-jobs";
 import Internships from "@/pages/internships";
 import LandingPage from "@/pages/landing";
 import FavouritesPage from "./pages/favourites";
@@ -22,8 +23,9 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/jobs" component={PublicJobsPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
-      <ProtectedRoute path="/jobs" component={Jobs} />
+      <ProtectedRoute path="/app/jobs" component={AppJobsPage} />
       <ProtectedRoute path="/jobs/:id" component={JobDetails} />
       <ProtectedRoute path="/internships" component={Internships} />
       <ProtectedRoute path="/profile" component={Profile} />

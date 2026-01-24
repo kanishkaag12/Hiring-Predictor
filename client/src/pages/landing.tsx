@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from "wouter";
 import { useTheme } from "next-themes";
 import { Moon, Sun, Twitter, Linkedin, Github, MessageSquare } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import './landing.css';
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
   const heroRef = useRef<HTMLElement>(null);
   const pulseLinesRef = useRef<HTMLDivElement>(null);
 
@@ -123,11 +125,8 @@ export default function LandingPage() {
     });
   };
 
-  const scrollToHow = () => {
-    document.getElementById('how-it-works')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
+  const handleFindJobs = () => {
+    setLocation("/jobs");
   };
 
   const handleLogin = () => {
@@ -216,7 +215,7 @@ export default function LandingPage() {
 
           <div className="hero-cta" id="cta">
             <button className="cta-primary" onClick={revealChances}>Reveal My Chances</button>
-            <button className="cta-secondary" onClick={scrollToHow}>See How This Works</button>
+            <button className="cta-secondary" onClick={handleFindJobs}>Find Jobs</button>
           </div>
         </div>
 

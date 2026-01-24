@@ -10,7 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: Search, label: "Find Jobs", href: "/jobs" },
+    { icon: Search, label: "Find Jobs", href: "/app/jobs" },
     { icon: Home, label: "Find Internships", href: "/internships" },
     { icon: Briefcase, label: "Favourites", href: "/favourites" },
   ];
