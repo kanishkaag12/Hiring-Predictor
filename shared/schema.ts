@@ -19,6 +19,8 @@ export const users = pgTable("users", {
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
   resumeScore: integer("resume_score").default(0),
+  userType: text("user_type"), // 'Student' | 'Working Professional' | 'Fresher' | 'Career Switcher'
+  interestRoles: jsonb("interest_roles").$type<string[]>().default(sql`'[]'::jsonb`),
 });
 
 export const favourites = pgTable("favourites", {
