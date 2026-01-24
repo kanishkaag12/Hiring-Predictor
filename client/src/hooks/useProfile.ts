@@ -54,6 +54,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -63,6 +64,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -73,6 +75,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -82,6 +85,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -92,6 +96,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
@@ -102,6 +107,7 @@ export function useProfile() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
         },
     });
 
