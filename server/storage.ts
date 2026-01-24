@@ -88,6 +88,8 @@ class InMemoryStorage implements IStorage {
       resumeName: null,
       resumeUploadedAt: null,
       resumeScore: 0,
+      userType: null,
+      interestRoles: [],
     };
     this.users.set(id, user);
     return user;

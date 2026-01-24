@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from "wouter";
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Twitter, Linkedin, Github, MessageSquare } from "lucide-react";
 import './landing.css';
 
 export default function LandingPage() {
@@ -627,10 +627,18 @@ export default function LandingPage() {
             &copy; {new Date().getFullYear()} HirePulse Inc. All rights reserved.
           </div>
           <div className="footer-social">
-            <a href="#" aria-label="Twitter">Twitter</a>
-            <a href="#" aria-label="LinkedIn">LinkedIn</a>
-            <a href="#" aria-label="GitHub">GitHub</a>
-            <a href="#" aria-label="Discord">Discord</a>
+            <a href="#" aria-label="Twitter">
+              <Twitter className="w-5 h-5" />
+            </a>
+            <a href="#" aria-label="LinkedIn">
+              <Linkedin className="w-5 h-5" />
+            </a>
+            <a href="#" aria-label="GitHub">
+              <Github className="w-5 h-5" />
+            </a>
+            <a href="#" aria-label="Discord">
+              <MessageSquare className="w-5 h-5" />
+            </a>
           </div>
         </div>
       </footer>
