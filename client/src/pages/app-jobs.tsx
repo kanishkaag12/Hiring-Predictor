@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 
-export default function Jobs() {
+export default function AppJobsPage() {
   const { user } = useAuth();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +91,7 @@ export default function Jobs() {
                     transition={{ duration: 0.2 }}
                     className="h-full"
                   >
-                    <JobCard job={job} isGuest={!user} />
+                    <JobCard job={job} isGuest={false} />
                   </motion.div>
                 ))}
               </div>
