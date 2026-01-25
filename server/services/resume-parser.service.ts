@@ -9,6 +9,50 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+/**
+ * Dynamically find the project root directory.
+ * Traverses upward from current working directory until finding package.json.
+ * This ensures script paths work regardless of where the server is executed from.
+ */
+function findProjectRoot(): string {
+  let currentDir = process.cwd();
+  const maxLevels = 10; // Safety limit to prevent infinite loops
+  
+  for (let i = 0; i < maxLevels; i++) {
+    // Check if package.json exists at this level
+    const packageJsonPath = path.join(currentDir, "package.json");
+    if (fs.existsSync(packageJsonPath)) {
+      // Found package.json, check if parent has scripts folder
+      const parentDir = path.dirname(currentDir);
+      const scriptsDir = path.join(parentDir, "scripts");
+      
+      // If scripts folder exists at parent level, use parent as root
+      if (fs.existsSync(scriptsDir)) {
+        return parentDir;
+      }
+      
+      // Otherwise, check if scripts exist at current level
+      const localScriptsDir = path.join(currentDir, "scripts");
+      if (fs.existsSync(localScriptsDir)) {
+        return currentDir;
+      }
+    }
+    
+    // Move up one directory
+    const parentDir = path.dirname(currentDir);
+    
+    // Check if we've reached the root (no more parent directories)
+    if (parentDir === currentDir) {
+      break;
+    }
+    
+    currentDir = parentDir;
+  }
+  
+  // Fallback: assume scripts are in parent of current working directory
+  return path.dirname(process.cwd());
+}
+
 export interface ParsedResumeData {
   skills: string[];
   education: Array<{
@@ -78,20 +122,33 @@ export async function parseResume(
 function callPythonParser(filePath: string): Promise<ParsedResumeData> {
   return new Promise((resolve, reject) => {
     try {
-      // Get the path to the Python parser script
-      // It's in the root of the Hiring-Predictor folder
+      // Dynamically find project root and resolve script path
+      const projectRoot = findProjectRoot();
       const pythonScriptPath = path.join(
-        process.cwd(),
-        "..",
+        projectRoot,
+        "scripts",
+        "resume-parser",
         "resume_parser.py"
       );
 
       // Check if the Python script exists
       if (!fs.existsSync(pythonScriptPath)) {
+        const searchedLocations = [
+          pythonScriptPath,
+          path.join(process.cwd(), "scripts", "resume-parser", "resume_parser.py"),
+          path.join(process.cwd(), "..", "scripts", "resume-parser", "resume_parser.py"),
+        ];
+        
         return reject(
-          new Error(`Resume parser script not found at: ${pythonScriptPath}`)
+          new Error(
+            `Resume parser script not found. Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n` +
+            `Project root detected: ${projectRoot}\n` +
+            `Current working directory: ${process.cwd()}`
+          )
         );
       }
+
+      console.log(`[Resume Parser] Using script at: ${pythonScriptPath}`);
 
       // Execute the Python script
       const pythonProcess = spawn("python", [pythonScriptPath, filePath], {
