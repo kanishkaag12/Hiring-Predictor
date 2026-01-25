@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { fetchJobs } from "./jobs/job.service";
+import path from "path";
 
 import { log } from "./utils/logger";
 
@@ -26,6 +27,11 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Serve uploads folder as static files for resume access
+const uploadsPath = path.resolve(process.cwd(), "uploads");
+app.use("/uploads", express.static(uploadsPath));
+log(`Serving uploads directory from: ${uploadsPath}`, "system");
 
 app.use((req, res, next) => {
   const start = Date.now();
