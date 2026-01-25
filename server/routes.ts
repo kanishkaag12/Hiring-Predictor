@@ -474,7 +474,15 @@ export async function registerRoutes(
         experiences: experiences.map(e => ({
           title: e.role || '',
           company: e.company || ''
-        }))
+        })),
+        // Pass parsed resume data for feature engineering
+        parsedResume: user.resumeParsedSkills ? {
+          skills: user.resumeParsedSkills || [],
+          education: user.resumeEducation || [],
+          experience_months: user.resumeExperienceMonths || 0,
+          projects_count: user.resumeProjectsCount || 0,
+          resume_completeness_score: parseFloat(user.resumeCompletenessScore as string) || 0
+        } : undefined
       });
 
       res.json({
@@ -577,6 +585,14 @@ export async function registerRoutes(
           resumeQualityScore: typeof user.resumeCompletenessScore === 'number' 
             ? user.resumeCompletenessScore / 100  // Convert 0-100 to 0-1
             : 0.5,
+          // Pass parsed resume data for feature engineering
+          parsedResume: user.resumeParsedSkills ? {
+            skills: user.resumeParsedSkills || [],
+            education: user.resumeEducation || [],
+            experience_months: user.resumeExperienceMonths || 0,
+            projects_count: user.resumeProjectsCount || 0,
+            resume_completeness_score: parseFloat(user.resumeCompletenessScore as string) || 0
+          } : undefined,
           projectsCount: projects.length,
           educationDegree: user.resumeEducation?.[0]?.degree || undefined
         });
