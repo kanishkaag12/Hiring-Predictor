@@ -7,3 +7,7 @@ vite.config.ts.*
 .ai.env
 
 .env
+
+# Upload artifacts
+uploads/
+uploads/*

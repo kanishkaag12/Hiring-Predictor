@@ -34,6 +34,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -44,6 +45,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -55,6 +57,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -65,6 +68,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -76,6 +80,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -86,6 +91,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 
@@ -126,8 +132,15 @@ export function useProfile() {
             return res.json();
         },
         onSuccess: () => {
+            // Invalidate profile data
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            // Invalidate dashboard to reflect new parsed skills and role predictions
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+            // Invalidate ML predictions if queried separately
+            queryClient.invalidateQueries({ queryKey: ["/api/ml/predict-roles"] });
+            // Invalidate user data to sync resume metadata
+            queryClient.invalidateQueries({ queryKey: ["/api/user"] });
         },
     });
 
@@ -139,6 +152,7 @@ export function useProfile() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
             queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
         },
     });
 

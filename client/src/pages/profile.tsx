@@ -10,7 +10,7 @@ import {
   FileText, Github, Linkedin, Mail, MapPin,
   GraduationCap, Briefcase, Plus, Trash2,
   Edit3, ExternalLink, Code, Layers, Info, CheckCircle2,
-  CloudLightning, TrendingUp, Target
+  CloudLightning, TrendingUp, Target, Eye
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion, AnimatePresence } from "framer-motion";
@@ -103,8 +103,23 @@ export default function Profile() {
       return;
     }
     try {
-      await uploadResume.mutateAsync(file);
-      toast({ title: "Resume Uploaded", description: "Your profile readiness has been recalculated." });
+      const result = await uploadResume.mutateAsync(file);
+      const skillCount = result?.parsedResume?.skills?.length || 0;
+      
+      if (result?.parsingError) {
+        toast({ 
+          title: "Resume Uploaded (Parsing Issue)", 
+          description: result.parsingError,
+          variant: "destructive"
+        });
+      } else {
+        toast({ 
+          title: "Resume Uploaded & Analyzed", 
+          description: skillCount > 0 
+            ? `Extracted ${skillCount} skills. Dashboard updated with new role predictions.`
+            : "Resume processed. Visit dashboard for updated insights."
+        });
+      }
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     }
@@ -496,6 +511,13 @@ export default function Profile() {
                             ? `Last updated ${new Date(profile.resumeUploadedAt).toLocaleDateString()}`
                             : "No resume uploaded"}
                         </p>
+                        {profile.resumeParsingError && (
+                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-xs text-red-600 font-medium">⚠️ Parsing Issue</p>
+                            <p className="text-xs text-red-500 mt-1">{profile.resumeParsingError}</p>
+                            <p className="text-xs text-red-500 mt-2">Try uploading a different resume file or ensure it contains clear structured content.</p>
+                          </div>
+                        )}
                       </div>
                       <div className="relative">
                         <input
@@ -515,6 +537,17 @@ export default function Profile() {
                             {uploadResume.isPending ? "Uploading..." : "Upload New PDF"}
                           </label>
                         </Button>
+                        {profile.resumeUrl && (
+                          <Button
+                            variant="outline"
+                            className="w-full rounded-xl gap-2 h-10 mt-2"
+                            onClick={() => window.open(profile.resumeUrl, '_blank', 'noopener,noreferrer')}
+                            aria-label="View uploaded resume in new tab"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Resume
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
