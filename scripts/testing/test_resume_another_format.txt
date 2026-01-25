@@ -1,0 +1,29 @@
+
+    Jane Smith
+    Data Scientist
+
+    jane.smith@email.com | (987) 654-3210 | linkedin.com/in/janesmith
+
+    ========================================
+    PROFESSIONAL SUMMARY
+    ========================================
+    Highly analytical and detail-oriented Data Scientist with 3+ years of experience.
+
+    ========================================
+    TECHNICAL SKILLS
+    ========================================
+    - Languages: Python, R, SQL
+    - Libraries: Pandas, NumPy, Scikit-learn, TensorFlow, PyTorch
+    - Tools: Jupyter, Git, Docker
+
+    ========================================
+    WORK EXPERIENCE
+    ========================================
+    - Data Scientist, ABC Corp (2021-Present)
+    - Data Analyst, XYZ Inc (2019-2021)
+
+    ========================================
+    EDUCATION
+    ========================================
+    - M.S. in Data Science, Another University
+    
