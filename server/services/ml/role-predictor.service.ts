@@ -16,6 +16,8 @@
 
 import { RoleEmbeddingService } from './embedding.service';
 import { JOB_ROLE_CORPUS, JobRole, JOB_ROLE_CLUSTERS } from './job-role-corpus';
+import { generateFeatureVectors, featureVectorToArray, type FeatureVector } from '../ml/feature-engineering.service';
+import type { ParsedResumeData } from '../resume-parser.service';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -61,6 +63,10 @@ export interface PredictionResult {
     requiredSkills: string[];
   }>;
   
+  // ML feature vectors for each role (normalized [0-1])
+  featureVectors?: Record<string, FeatureVector>;
+  featureArrays?: Record<string, number[]>;
+  
   // Metadata
   modelVersion: string;
   timestamp: Date;
@@ -95,6 +101,9 @@ export interface ResumeInput {
   resumeQualityScore?: number;  // 0-1 completeness/quality from parser
   projectsCount?: number;
   educationDegree?: string;
+  
+  // Parsed resume data for feature engineering
+  parsedResume?: ParsedResumeData;
 }
 
 // ============================================================================
@@ -159,12 +168,42 @@ export class MLRolePredictor {
     // Generate career paths
     const careerPaths = this.suggestCareerPaths(predictions, input);
 
+    // Generate ML feature vectors if parsed resume data is available
+    let featureVectors: Record<string, FeatureVector> | undefined;
+    let featureArrays: Record<string, number[]> | undefined;
+
+    if (input.parsedResume) {
+      // Create skill match scores map from predictions
+      const roleSkillMatches: Record<string, number> = {};
+      for (const pred of predictions.slice(0, 15)) {
+        // Use calibrated probability as skill match score
+        roleSkillMatches[pred.roleTitle] = pred.probability;
+      }
+
+      // Generate feature vectors
+      featureVectors = generateFeatureVectors(
+        roleSkillMatches,
+        input.parsedResume,
+        undefined, // behavioral_intent: will be added when user interest data available
+        undefined, // market_demand: will be added from market analysis
+        undefined  // competition: will be added from hiring difficulty
+      );
+
+      // Convert to arrays for ML model input
+      featureArrays = {};
+      for (const [roleName, vector] of Object.entries(featureVectors)) {
+        featureArrays[roleName] = featureVectorToArray(vector);
+      }
+    }
+
     return {
       topRoles: predictions.slice(0, 10),
       clusterPredictions,
       crossDomainRoles,
       keySkillsIdentified,
       careerPaths,
+      featureVectors,
+      featureArrays,
       modelVersion: '1.0.0-calibrated',
       timestamp: new Date(),
       inputSummary: {
