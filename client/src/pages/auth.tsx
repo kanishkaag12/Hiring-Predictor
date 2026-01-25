@@ -158,7 +158,7 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-stretch bg-background overflow-hidden">
       {/* Left Side - Hero Section */}
       <div className="hidden lg:flex w-1/2 relative bg-primary items-center justify-center p-12 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/80 to-accent opacity-90" />
+        <div className="absolute inset-0 bg-linear-to-br from-primary via-primary/80 to-accent opacity-90" />
         
         {/* Abstract background elements */}
         <div className="absolute top-0 -left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
