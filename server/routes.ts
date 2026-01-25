@@ -9,6 +9,8 @@ import { ROLE_REQUIREMENTS } from "@shared/roles";
 import { IntelligenceService } from "./services/intelligence.service";
 import { AIService } from "./services/ai.service";
 import { AISimulationService } from "./services/ai-simulation.service";
+import { SkillRoleMappingService } from "./services/skill-role-mapping.service";
+import { getRolePredictor } from "./services/ml/role-predictor.service";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -292,7 +294,9 @@ export async function registerRoutes(
     const skills = await storage.getSkills(userId);
 
     // Calculate completion status based on LIVE profile data
-    const interestRolesComplete = user.interestRoles && user.interestRoles.length >= 2;
+    // Ensure interestRoles is an array and has at least 2 items
+    const interestRolesArray = Array.isArray(user.interestRoles) ? user.interestRoles : [];
+    const interestRolesComplete = interestRolesArray.length >= 2;
     const resumeUploaded = !!user.resumeUrl;
     const careerStatusSet = !!user.userType;
     const skillsAdded = skills.length > 0;
@@ -301,9 +305,14 @@ export async function registerRoutes(
     const dashboardUnlocked = interestRolesComplete && resumeUploaded && careerStatusSet && skillsAdded;
 
     console.log(`[DASHBOARD UNLOCK CHECK] User ${userId}:`, {
+      interestRoles: user.interestRoles,
+      interestRolesArray,
       interestRolesComplete,
+      resumeUrl: user.resumeUrl,
       resumeUploaded,
+      userType: user.userType,
       careerStatusSet,
+      skillsCount: skills.length,
       skillsAdded,
       dashboardUnlocked
     });
@@ -338,17 +347,177 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Evaluate resume quality using AI-based heuristics
-    const resumeScore = await evaluateResumeQuality(req.file.buffer, req.file.originalname, (req.user as User).userType);
+    try {
+      // Import resume parser service
+      const { parseResumeWithFallback } = await import("./services/resume-parser.service");
 
-    const updated = await storage.updateUser(userId, {
-      resumeUrl: `/uploads/${req.file.filename}`,
-      resumeName: req.file.originalname,
-      resumeUploadedAt: new Date(),
-      resumeScore: resumeScore
-    });
+      // Read the uploaded file from disk to ensure a valid Buffer
+      const savedFilePath = path.join(uploadDir, req.file.filename);
+      const fileBuffer = fs.readFileSync(savedFilePath);
 
-    res.json(updated);
+      // Evaluate resume quality using AI-based heuristics
+      const resumeScore = await evaluateResumeQuality(fileBuffer, req.file.originalname, (req.user as User).userType ?? undefined);
+
+      let parsedResume;
+      let parsingError: string | null = null;
+      const parsingAttemptedAt = new Date();
+
+      // Attempt to parse the resume
+      try {
+        parsedResume = await parseResumeWithFallback(
+          fileBuffer,
+          req.file.originalname
+        );
+        // Validate that we got actual data, not just empty defaults
+        if (!parsedResume.skills || parsedResume.skills.length === 0) {
+          parsingError = "Resume parsing completed but no skills were extracted. The resume may not contain enough structured content.";
+        }
+      } catch (parseError) {
+        parsingError = parseError instanceof Error ? parseError.message : String(parseError);
+        // Provide a fallback result structure but mark it as an error
+        parsedResume = {
+          skills: [],
+          education: [],
+          experience_months: 0,
+          projects_count: 0,
+          resume_completeness_score: 0,
+        };
+      }
+
+      // Update user with resume metadata and parsed data
+      const updateData: Partial<User> = {
+        resumeUrl: `/uploads/${req.file.filename}`,
+        resumeName: req.file.originalname,
+        resumeUploadedAt: new Date(),
+        resumeScore: resumeScore,
+        // Add parsed resume data
+        resumeParsedSkills: parsedResume.skills,
+        resumeEducation: parsedResume.education,
+        resumeExperienceMonths: parsedResume.experience_months,
+        resumeProjectsCount: parsedResume.projects_count,
+        resumeCompletenessScore: String(parsedResume.resume_completeness_score),
+        // Track parsing status
+        resumeParsingError: parsingError,
+        resumeParsingAttemptedAt: parsingAttemptedAt,
+      };
+
+      const updated = await storage.updateUser(userId, updateData);
+
+      // Calculate role skill match scores from parsed skills
+      const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills);
+
+      // Return response with parsed data and error status if applicable
+      res.json({
+        ...updated,
+        parsedResume: {
+          skills: parsedResume.skills,
+          education: parsedResume.education,
+          experience_months: parsedResume.experience_months,
+          projects_count: parsedResume.projects_count,
+          resume_completeness_score: parsedResume.resume_completeness_score,
+        },
+        parsingError,
+        roleSkillMatches,
+      });
+    } catch (error) {
+      console.error("Resume upload error:", error);
+      res.status(500).json({
+        message: "Error processing resume",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+
+  // 🤖 ML ROLE PREDICTIONS
+  app.get("/api/ml/predict-roles", ensureAuthenticated, async (req, res) => {
+    const userId = (req.user as User).id;
+    const user = await storage.getUser(userId);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    try {
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+
+      const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills) 
+        ? user.resumeParsedSkills 
+        : [];
+
+      // Combine parsed resume skills with manually added skills
+      const skillSet = new Set([
+        ...resumeSkills,
+        ...skills.map(s => s.name)
+      ]);
+      const allSkills = Array.from(skillSet);
+
+      if (allSkills.length === 0 && projects.length === 0 && experiences.length === 0) {
+        return res.json({
+          success: false,
+          message: "Add skills, projects, or experience to get ML-based role predictions",
+          predictions: null
+        });
+      }
+
+      const predictor = getRolePredictor();
+      const predictions = predictor.predictRoles({
+        skills: allSkills,
+        education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
+        experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
+        projects: projects.map(p => ({ 
+          name: p.title || '', 
+          description: p.description || '' 
+        })),
+        experiences: experiences.map(e => ({
+          title: e.role || '',
+          company: e.company || ''
+        }))
+      });
+
+      res.json({
+        success: true,
+        predictions,
+        skillsUsed: allSkills
+      });
+    } catch (error) {
+      console.error('[ML Prediction Error]', error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to generate predictions",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Quick prediction with just skills (no auth required for demo)
+  app.post("/api/ml/quick-predict", async (req, res) => {
+    try {
+      const { skills, limit = 10 } = req.body;
+
+      if (!Array.isArray(skills) || skills.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide an array of skills"
+        });
+      }
+
+      const predictor = getRolePredictor();
+      const predictions = predictor.predictTopRoles(skills, limit);
+
+      res.json({
+        success: true,
+        predictions,
+        skillsUsed: skills
+      });
+    } catch (error) {
+      console.error('[Quick Prediction Error]', error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to generate predictions",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   });
 
 
@@ -367,6 +536,71 @@ export async function registerRoutes(
     const rolesToCalculate = (user.interestRoles && user.interestRoles.length >= 2)
       ? user.interestRoles
       : [];
+
+    // Calculate skill-to-role match scores from parsed resume skills
+    const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills) 
+      ? user.resumeParsedSkills 
+      : [];
+    
+    // Track if resume parsing failed
+    const resumeParsingError = user.resumeParsingError || null;
+    const resumeParsingStatus = {
+      attempted: !!user.resumeParsingAttemptedAt,
+      attemptedAt: user.resumeParsingAttemptedAt || null,
+      hasError: !!resumeParsingError,
+      error: resumeParsingError,
+    };
+    
+    const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(resumeSkills);
+
+    // ML-based role predictions (probabilistic, background-agnostic)
+    let mlRolePredictions = null;
+    if (resumeSkills.length > 0 || projects.length > 0 || experiences.length > 0) {
+      try {
+        const predictor = getRolePredictor();
+        mlRolePredictions = predictor.predictRoles({
+          skills: resumeSkills,
+          education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
+          experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
+          projects: projects.map(p => ({ 
+            name: p.title || '', 
+            description: p.description || '' 
+          })),
+          experiences: experiences.map(e => ({
+            title: e.role || '',
+            company: e.company || ''
+          })),
+          // User context for calibration
+          userLevel: (user.userType as any) || 'fresher',
+          resumeQualityScore: typeof user.resumeCompletenessScore === 'number' 
+            ? user.resumeCompletenessScore / 100  // Convert 0-100 to 0-1
+            : 0.5,
+          projectsCount: projects.length,
+          educationDegree: user.resumeEducation?.[0]?.degree || undefined
+        });
+      } catch (err) {
+        console.error('[Dashboard] ML prediction error:', err);
+        mlRolePredictions = null;
+      }
+    }
+
+    // Get detailed role skill analysis for interest roles
+    const roleSkillAnalysis = rolesToCalculate.map(roleName => {
+      try {
+        return SkillRoleMappingService.calculateSkillMatchScore(roleName, resumeSkills);
+      } catch {
+        return {
+          roleName,
+          overallScore: 0,
+          matchPercentage: 0,
+          components: [],
+          essentialGaps: [],
+          strengths: [],
+          recommendations: [],
+          explanation: `Role "${roleName}" analysis unavailable`
+        };
+      }
+    });
 
     const unlockStatus = {
       hasRoles: rolesToCalculate.length >= 2,
@@ -402,6 +636,63 @@ export async function registerRoutes(
       ? readinessScores.reduce((acc: number, curr: any) => acc + curr.score, 0) / readinessScores.length
       : 0;
 
+    // Enrich ML predictions with user intent (AI alignment guidance for selected roles)
+    const userInterestRoles = user.interestRoles || [];
+    const enrichedMLPredictions = mlRolePredictions ? {
+      ...mlRolePredictions,
+      topRoles: mlRolePredictions.topRoles?.map((role: any) => ({
+        ...role,
+        isUserSelected: userInterestRoles.includes(role.roleTitle)
+      })) || [],
+      userSelectedRoles: userInterestRoles.map(roleName => {
+        // Analyze each user-selected role for detailed AI alignment insights
+        let aiAlignment = null;
+        try {
+          if (resumeSkills.length > 0 || projects.length > 0 || experiences.length > 0) {
+            const predictor = getRolePredictor();
+            const analysis = predictor.analyzeRoleAlignment(roleName, {
+              skills: resumeSkills,
+              education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
+              experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
+              projects: projects.map(p => ({ 
+                name: p.title || '', 
+                description: p.description || '' 
+              })),
+              experiences: experiences.map(e => ({
+                title: e.role || '',
+                company: e.company || ''
+              })),
+              userLevel: (user.userType as any) || 'fresher',
+              resumeQualityScore: typeof user.resumeCompletenessScore === 'number' 
+                ? user.resumeCompletenessScore / 100
+                : 0.5,
+              projectsCount: projects.length,
+              educationDegree: user.resumeEducation?.[0]?.degree || undefined
+            });
+            aiAlignment = {
+              alignmentStatus: analysis.alignmentStatus,
+              confidence: analysis.confidence,
+              probability: analysis.probability,
+              matchedSkills: analysis.matchedSkills,
+              matchedKeywords: analysis.matchedKeywords,
+              growthAreas: analysis.growthAreas,
+              explanation: analysis.explanation,
+              constructiveGuidance: analysis.constructiveGuidance
+            };
+          }
+        } catch (err) {
+          console.error(`[Dashboard] Role alignment analysis error for ${roleName}:`, err);
+        }
+
+        return {
+          roleTitle: roleName,
+          isUserSelected: true,
+          // AI alignment data (comprehensive analysis)
+          aiAlignment
+        };
+      })
+    } : null;
+
     res.json({
       isDashboardGated: isGated,
       hiringPulse: {
@@ -428,7 +719,17 @@ export async function registerRoutes(
         projects: projects.length > 2 ? "Above Average" : "Average"
       },
       actionSteps: readinessScores[0]?.gaps.map((g: string) => ({ type: "improve", text: g })) || [],
-      unlockStatus
+      unlockStatus,
+      // User interest roles
+      userInterestRoles,
+      // Resume parsing status - track if parsing failed
+      resumeParsingStatus,
+      // Skill-to-Role Mapping (Deterministic scores from parsed resume skills)
+      roleSkillMatches,
+      roleSkillAnalysis,
+      resumeSkillsUsed: resumeSkills,
+      // ML-based role predictions (probabilistic, background-agnostic) with user intent
+      mlRolePredictions: enrichedMLPredictions
     });
   });
 

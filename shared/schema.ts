@@ -19,6 +19,15 @@ export const users = pgTable("users", {
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
   resumeScore: integer("resume_score").default(0),
+  // Parsed resume data (optional - columns may not exist in older databases yet)
+  resumeParsedSkills: jsonb("resume_parsed_skills").$type<string[]>(),
+  resumeEducation: jsonb("resume_education").$type<Array<{degree: string, institution?: string, year?: string}>>(),
+  resumeExperienceMonths: integer("resume_experience_months"),
+  resumeProjectsCount: integer("resume_projects_count"),
+  resumeCompletenessScore: text("resume_completeness_score"),
+  // Resume parsing error tracking - store error message if parsing fails
+  resumeParsingError: text("resume_parsing_error"),
+  resumeParsingAttemptedAt: timestamp("resume_parsing_attempted_at"),
   userType: text("user_type"), // 'Student' | 'Working Professional' | 'Fresher' | 'Career Switcher'
   interestRoles: jsonb("interest_roles").$type<string[]>().default(sql`'[]'::jsonb`),
 });
