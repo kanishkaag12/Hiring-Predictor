@@ -4,6 +4,7 @@ import {
   Layout,
   HiringPulseHero,
   MarketSnapshot,
+  MarketDemandStats,
   PeerComparison,
   ActionableSteps,
   RecentActivity,
@@ -199,7 +200,7 @@ export default function Dashboard() {
           </motion.div>
 
           <div className="text-center space-y-4 max-w-xl">
-            <h2 className="text-4xl font-black tracking-tight tracking-tight uppercase italic">Intelligence Locked</h2>
+            <h2 className="text-4xl font-black tracking-tight uppercase italic">Intelligence Locked</h2>
             <p className="text-muted-foreground leading-relaxed font-medium">
               HirePulse is a Zero-Assumption platform. We require explicit data before generating career intelligence to ensure maximum accuracy and ethical AI behavior.
             </p>
@@ -210,7 +211,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <Card className="w-full max-w-md border-border/40 bg-card/40 backdrop-blur-xl shadow-2xl overflow-hidden rounded-[2rem]">
+          <Card className="w-full max-w-md border-border/40 bg-card/40 backdrop-blur-xl shadow-2xl overflow-hidden rounded-4xl">
             <CardContent className="p-8 space-y-6">
               <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest text-center">Unlock Requirements</h3>
               <div className="space-y-3">
@@ -285,7 +286,7 @@ export default function Dashboard() {
             className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg"
           >
             <div className="flex items-start gap-3">
-              <div className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0">⚠️</div>
+              <div className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0">⚠️</div>
               <div className="flex-1">
                 <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm">Resume Parsing Issue</p>
                 <p className="text-amber-800 dark:text-amber-200 text-xs mt-1">{resumeParsingStatus?.error}</p>
@@ -350,9 +351,9 @@ export default function Dashboard() {
                     className={cn(
                       "border-border/50 overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]",
                       aiAlignment?.confidence === 'high'
-                        ? "bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/30"
+                        ? "bg-linear-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/30"
                         : aiAlignment?.confidence === 'medium'
-                          ? "bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/30"
+                          ? "bg-linear-to-br from-amber-500/10 to-amber-500/5 border-amber-500/30"
                           : "bg-card/50 border-border/30"
                     )}
                   >
@@ -487,9 +488,9 @@ export default function Dashboard() {
                   className={cn(
                     "border-border/50 overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]",
                     role.confidence === 'high' 
-                      ? "bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/30"
+                      ? "bg-linear-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/30"
                       : role.confidence === 'medium'
-                        ? "bg-gradient-to-br from-primary/10 to-primary/5 border-primary/30"
+                        ? "bg-linear-to-br from-primary/10 to-primary/5 border-primary/30"
                         : "bg-card/50"
                   )}
                 >
@@ -538,8 +539,8 @@ export default function Dashboard() {
                         transition={{ duration: 0.8, ease: "easeOut", delay: idx * 0.1 }}
                         className={cn(
                           "h-full rounded-full",
-                          role.confidence === 'high' ? "bg-gradient-to-r from-emerald-500 to-emerald-400" :
-                          role.confidence === 'medium' ? "bg-gradient-to-r from-primary to-primary/70" : 
+                          role.confidence === 'high' ? "bg-linear-to-r from-emerald-500 to-emerald-400" :
+                          role.confidence === 'medium' ? "bg-linear-to-r from-primary to-primary/70" : 
                           "bg-muted-foreground/40"
                         )}
                       />
@@ -617,6 +618,12 @@ export default function Dashboard() {
         <section className="space-y-4">
           <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Market Snapshot</h3>
           <MarketSnapshot data={data.marketSnapshot} />
+        </section>
+
+        {/* Section 3: Market Demand & Competition per Role */}
+        <section className="space-y-4">
+          <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Market Demand & Competition</h3>
+          <MarketDemandStats stats={data.marketStats} />
         </section>
 
         {/* Main Grid Content */}

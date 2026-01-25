@@ -7,6 +7,7 @@ export { default as JobCard } from "./job-card";
 
 export * from "./dashboard/HiringPulseHero";
 export * from "./dashboard/MarketSnapshot";
+export * from "./dashboard/MarketDemandStats";
 export * from "./dashboard/YourChancesSummary";
 export * from "./dashboard/PeerComparison";
 export * from "./dashboard/ActionableSteps";
