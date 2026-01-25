@@ -43,7 +43,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <ThemeProvider attribute="data-theme" defaultTheme="dark" storageKey="vite-ui-theme">
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
