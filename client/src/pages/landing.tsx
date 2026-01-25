@@ -141,6 +141,16 @@ export default function LandingPage() {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
   return (
     <div className="landing-page">
       {/* Header Navigation */}
@@ -151,13 +161,11 @@ export default function LandingPage() {
           </div>
 
           <nav className="header-nav-links">
-            <a href="#hero" className="nav-link">Home</a>
-            <a href="#how-it-works" className="nav-link">About</a>
-            <a href="#" className="nav-link">Services</a>
-            <a href="#" className="nav-link">Team</a>
-            <a href="#" className="nav-link">Testimonials</a>
-            <a href="#" className="nav-link">Pricing</a>
-            <a href="#" className="nav-link">Contact</a>
+            <button className="nav-link" onClick={() => scrollToSection('hero')}>Home</button>
+            <button className="nav-link" onClick={() => scrollToSection('how-it-works')}>About</button>
+            <button className="nav-link" onClick={() => scrollToSection('services')}>Services</button>
+            <button className="nav-link" onClick={() => scrollToSection('team')}>Team</button>
+            <button className="nav-link" onClick={() => scrollToSection('contact')}>Contact</button>
           </nav>
 
           <div className="header-actions">
@@ -513,7 +521,89 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Services Section */}
+      <section className="services" id="services">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[OUR CAPABILITIES]</span>
+            <h2>How We Empower Your Journey</h2>
+          </div>
+          <div className="services-grid">
+            <div className="service-card">
+              <h3>Profile Optimization</h3>
+              <p>Advanced AI suggestions to highlight your most relevant skills for target roles.</p>
+            </div>
+            <div className="service-card">
+              <h3>Market Intelligence</h3>
+              <p>Real-time data on hiring trends and competitive landscapes across industries.</p>
+            </div>
+            <div className="service-card">
+              <h3>Direct Matchmaking</h3>
+              <p>Direct connections to recruiters looking for profiles exactly like yours.</p>
+            </div>
+            <div className="service-card">
+              <h3>Smart Resume Builder</h3>
+              <p>Create ATS-friendly resumes that automatically adapt to job descriptions.</p>
+            </div>
+            <div className="service-card">
+              <h3>Salary Insights</h3>
+              <p>Know your worth with data-backed salary predictions for your role and experience.</p>
+            </div>
+            <div className="service-card">
+              <h3>Interview Prep</h3>
+              <p>AI-generated interview questions based on your specific job applications.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Team Section */}
+      <section className="team" id="team">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[THE MINDS]</span>
+            <h2>Built by Experts, For You</h2>
+          </div>
+          <div className="team-grid">
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>Data Scientists</h4>
+              <p>Mapping the complex patterns of the global job market.</p>
+            </div>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>Industry Veterans</h4>
+              <p>Guiding our AI with decades of recruitment experience.</p>
+            </div>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>AI Research Lead</h4>
+              <p>Pushing the boundaries of predictive hiring models.</p>
+            </div>
+            <div className="team-member">
+              <div className="member-photo"></div>
+              <h4>UX Design Head</h4>
+              <p>Crafting intuitive experiences for job seekers.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+      {/* Contact Section */}
+      <section className="contact" id="contact">
+        <div className="container">
+          <div className="section-header">
+            <span className="section-tag">[GET IN TOUCH]</span>
+            <h2>Have Questions?</h2>
+          </div>
+          <div className="contact-container">
+            <p>Connect with our team to learn more about how HirePulse can help you.</p>
+            <button className="cta-secondary">Contact Support</button>
+          </div>
+        </div>
+      </section>
       <section className="final-cta">
         <div className="container">
           <div className="cta-content">
@@ -578,44 +668,28 @@ export default function LandingPage() {
             <div className="footer-links">
               <h4>Product</h4>
               <ul>
-                <li><a href="#">Features</a></li>
-                <li><a href="#">Pricing</a></li>
-                <li><a href="#">Enterprise</a></li>
-                <li><a href="#">Success Stories</a></li>
-                <li><a href="#">Security</a></li>
+                <li><button className="footer-btn" onClick={() => scrollToSection('hero')}>Features</button></li>
+                <li><button className="footer-btn" onClick={() => scrollToSection('how-it-works')}>How it Works</button></li>
               </ul>
             </div>
 
             <div className="footer-links">
               <h4>Company</h4>
               <ul>
-                <li><a href="#">About Us</a></li>
+                <li><button className="footer-btn" onClick={() => scrollToSection('how-it-works')}>About Us</button></li>
                 <li><a href="#">Careers</a></li>
                 <li><a href="#">Blog</a></li>
-                <li><a href="#">Contact</a></li>
-                <li><a href="#">Press Kit</a></li>
+                <li><button className="footer-btn" onClick={() => scrollToSection('contact')}>Contact</button></li>
               </ul>
             </div>
 
             <div className="footer-links">
               <h4>Resources</h4>
               <ul>
-                <li><a href="#">Help Center</a></li>
+                <li><button className="footer-btn" onClick={() => scrollToSection('contact')}>Help Center</button></li>
                 <li><a href="#">API Docs</a></li>
                 <li><a href="#">Community</a></li>
                 <li><a href="#">Webinars</a></li>
-                <li><a href="#">Partners</a></li>
-              </ul>
-            </div>
-
-            <div className="footer-links">
-              <h4>Legal</h4>
-              <ul>
-                <li><a href="#">Privacy Policy</a></li>
-                <li><a href="#">Terms of Service</a></li>
-                <li><a href="#">Cookie Policy</a></li>
-                <li><a href="#">Data Processing</a></li>
-                <li><a href="#">Trust Center</a></li>
               </ul>
             </div>
           </div>
