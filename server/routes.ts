@@ -2,7 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
-import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
+import { fetchJobs } from "./jobs/job.service";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
@@ -277,36 +277,10 @@ export async function registerRoutes(
   app.post("/api/profile/interest-roles", ensureAuthenticated, async (req, res) => {
     const userId = (req.user as User).id;
     const { roles } = req.body;
-    
-    // Validate roles array
-    if (!Array.isArray(roles)) {
-      return res.status(400).json({ message: "Roles must be an array" });
+    if (!Array.isArray(roles) || roles.length < 1 || roles.length > 4) {
+      return res.status(400).json({ message: "Select between 1 and 4 roles" });
     }
-    
-    if (roles.length < 2) {
-      return res.status(400).json({ message: "Select at least 2 roles" });
-    }
-    
-if (roles.length > 6) {
-    return res.status(400).json({ message: "Maximum 6 roles allowed" });
-    }
-    
-    // Normalize: trim whitespace, remove duplicates (case-insensitive check but preserve original text)
-    const normalized = Array.from(new Map(
-      roles.map((role: string) => [role.trim().toLowerCase(), role.trim()])
-    ).values());
-    
-    if (normalized.length !== roles.length) {
-      return res.status(400).json({ message: "Duplicate roles detected (case-insensitive)" });
-    }
-    
-    // All roles must be non-empty strings
-    if (normalized.some((role: string) => !role || typeof role !== 'string')) {
-      return res.status(400).json({ message: "All roles must be valid non-empty strings" });
-    }
-    
-    console.log("[PROFILE] Updated interest roles for user", userId, ":", normalized);
-    const updated = await storage.updateUser(userId, { interestRoles: normalized });
+    const updated = await storage.updateUser(userId, { interestRoles: roles });
     res.json(updated.interestRoles);
   });
 
@@ -653,91 +627,9 @@ if (roles.length > 6) {
       };
     }) : [];
 
-    // Market Snapshot - enrich with aggregated market stats
+    // Market Snapshot - Always show basic market data? No, let's keep it minimal if gated
     const topRoles = Array.from(new Set(jobs.map(j => j.title))).slice(0, 3);
     const activeCompanies = jobs.map(j => j.company).filter((v, i, a) => a.indexOf(v) === i).length;
-    const marketStats = aggregateMarketStats(jobs);
-    
-    console.log("[DASHBOARD] Available market stats categories:", marketStats.map(s => s.roleCategory));
-    console.log("[DASHBOARD] Roles in readinessScores:", readinessScores.map(r => r.roleName || r.name));
-    
-    // Market Demand & Competition aligned with roleReadiness
-    // For EACH role in readinessScores, find matching market data
-    const alignedMarketStats = readinessScores.map(roleScore => {
-      const roleName = roleScore.roleName || roleScore.name || '';
-      
-      // Normalize role name for better matching
-      const normalizeForMatch = (str: string) => {
-        return str.toLowerCase()
-          .replace(/\//g, ' ')
-          .replace(/-/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      };
-      
-      const normalizedRoleName = normalizeForMatch(roleName);
-      
-      // Find matching market stat with flexible matching
-      const matchingStat = marketStats.find(stat => {
-        const normalizedStatRole = normalizeForMatch(stat.roleCategory);
-        
-        // Exact match after normalization
-        if (normalizedStatRole === normalizedRoleName) {
-          return true;
-        }
-        
-        // Direct substring match
-        if (normalizedStatRole.includes(normalizedRoleName) || normalizedRoleName.includes(normalizedStatRole)) {
-          return true;
-        }
-        
-        // Check key words (developer, engineer, designer, etc. are interchangeable)
-        const roleWords = normalizedRoleName.split(' ').filter(w => w.length > 2);
-        const statWords = normalizedStatRole.split(' ').filter(w => w.length > 2);
-        
-        // Replace synonyms
-        const synonymMap: Record<string, string> = {
-          'developer': 'engineer',
-          'engineer': 'developer',
-          'designer': 'design',
-          'design': 'designer'
-        };
-        
-        const normalizedRoleWords = roleWords.map(w => synonymMap[w] || w);
-        const normalizedStatWords = statWords.map(w => synonymMap[w] || w);
-        
-        // Match if they share significant overlap
-        const hasMatch = normalizedRoleWords.some(word => 
-          normalizedStatWords.includes(word) || 
-          statWords.some(sw => sw.includes(word) || word.includes(sw))
-        );
-        
-        return hasMatch;
-      });
-      
-      console.log(`[DASHBOARD] Matching "${roleName}" -> ${matchingStat ? matchingStat.roleCategory : 'NO MATCH'}`);
-      
-      if (matchingStat) {
-        return {
-          role: roleName,
-          activeRoles: matchingStat.totalActiveJobs,
-          avgApplicants: Math.round(matchingStat.averageApplicantsPerJob),
-          marketDemand: Math.round(matchingStat.marketDemandScore * 100),
-          competition: Math.round(matchingStat.competitionScore * 100),
-          demandTrend: matchingStat.demandTrend,
-          notableCompanies: matchingStat.sampleCompanies
-        };
-      } else {
-        return {
-          role: roleName,
-          unavailable: true,
-          message: "Market data currently unavailable for this role."
-        };
-      }
-    });
-    
-    console.log("[DASHBOARD] Roles in readinessScores:", readinessScores.map(r => r.roleName || r.name));
-    console.log("[DASHBOARD] Aligned market stats:", alignedMarketStats);
 
     // Overall hiring pulse (average of role scores)
     const avgScore = readinessScores.length > 0
@@ -810,12 +702,8 @@ if (roles.length > 6) {
       marketSnapshot: {
         topRoles,
         activeCompanies,
-        highCompetitionRoles: marketStats
-          .sort((a, b) => b.competitionScore - a.competitionScore)
-          .slice(0, 3)
-          .map((m) => m.roleCategory),
-        trendingSkills: ["React", "Node.js", "Python"],
-        marketStats: alignedMarketStats
+        highCompetitionRoles: jobs.slice(0, 3).map(j => j.title),
+        trendingSkills: ["React", "Node.js", "Python"]
       },
       roleReadiness: readinessScores,
       recentActivity: [

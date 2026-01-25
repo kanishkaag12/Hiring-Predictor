@@ -1,4 +1,4 @@
-import { Job, JobFilter, CompanyDiscovery, MarketStats, DemandTrend } from "./job.types";
+import { Job, JobFilter, CompanyDiscovery } from "./job.types";
 import { getEnabledBackendSources } from "./job.sources";
 import { fetchRemotiveJobs } from "./sources/remotive.fetcher";
 import { fetchGreenhouseJobs } from "./sources/greenhouse.fetcher";
@@ -83,65 +83,6 @@ function inferCompanyTags(job: any): string[] {
   if (job.companyType === "Startup") tags.push("High Growth");
 
   return Array.from(new Set(tags)).slice(0, 3);
-}
-
-function normalizeRoleCategory(title: string): string {
-  const t = title.toLowerCase();
-  
-  // Data roles
-  if (t.includes("data scientist") || t.includes("data science")) return "Data Scientist";
-  if (t.includes("data engineer")) return "Data Engineer";
-  if (t.includes("data analyst")) return "Data Analyst";
-  if (t.includes("machine learning") || t.includes("ml engineer")) return "ML Engineer";
-  
-  // Engineering roles - match common user selections
-  if (t.includes("frontend") || t.includes("front-end") || t.includes("front end") || t.includes("ui engineer")) return "Frontend Developer";
-  if (t.includes("backend") || t.includes("back-end") || t.includes("back end") || t.includes("api developer") || t.includes("server")) return "Backend Developer";
-  if (t.includes("full stack") || t.includes("fullstack") || t.includes("full-stack")) return "Fullstack Developer";
-  if (t.includes("devops") || t.includes("sre") || t.includes("site reliability")) return "DevOps Engineer";
-  if (t.includes("cloud architect") || t.includes("solutions architect")) return "Cloud Architect";
-  if (t.includes("mobile") || t.includes("android") || t.includes("ios") || t.includes("react native")) return "Mobile App Developer";
-  
-  // Product & Design
-  if (t.includes("product manager") || t.includes("product management") || t.includes("product owner")) return "Product Manager";
-  if (t.includes("ux") || t.includes("ui design") || t.includes("ui/ux") || t.includes("ux/ui") || t.includes("user experience") || t.includes("user interface")) return "UI/UX Designer";
-  
-  // Business & QA
-  if (t.includes("business analyst")) return "Business Analyst";
-  if (t.includes("qa engineer") || t.includes("qa analyst") || t.includes("quality assurance") || t.includes("test engineer") || t.includes("sdet")) return "QA Engineer";
-  
-  // Software Engineer is the catch-all
-  return "Software Engineer";
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-function computeDemandTrend(postedDates: string[]): DemandTrend {
-  const now = Date.now();
-  const dayMs = 1000 * 60 * 60 * 24;
-  const recentWindow = 7 * dayMs;
-  const prevWindowStart = now - 14 * dayMs;
-  const prevWindowEnd = now - 7 * dayMs;
-
-  let recent = 0;
-  let previous = 0;
-
-  postedDates.forEach((dateStr) => {
-    const ts = new Date(dateStr).getTime();
-    if (isNaN(ts)) return;
-    if (ts >= now - recentWindow) recent += 1;
-    else if (ts >= prevWindowStart && ts < prevWindowEnd) previous += 1;
-  });
-
-  if (previous === 0 && recent === 0) return "stable";
-  if (previous === 0 && recent > 0) return "rising";
-
-  const ratio = recent / Math.max(1, previous);
-  if (ratio >= 1.15) return "rising";
-  if (ratio <= 0.85) return "falling";
-  return "stable";
 }
 
 export async function fetchJobs(filter: JobFilter = {}): Promise<Job[]> {
@@ -241,47 +182,4 @@ export async function fetchJobs(filter: JobFilter = {}): Promise<Job[]> {
 export async function fetchJobById(jobId: string): Promise<Job | null> {
   const jobs = await fetchJobs();
   return jobs.find((job) => job.id === jobId) ?? null;
-}
-
-export function aggregateMarketStats(jobs: Job[]): MarketStats[] {
-  const grouped: Record<string, Job[]> = {};
-
-  jobs.forEach((job) => {
-    const roleCategory = normalizeRoleCategory(job.title);
-    grouped[roleCategory] = grouped[roleCategory] || [];
-    grouped[roleCategory].push(job);
-  });
-
-  const results: MarketStats[] = Object.entries(grouped).map(([roleCategory, roleJobs]) => {
-    const totalActiveJobs = roleJobs.length;
-    const totalApplicants = roleJobs.reduce((sum, job) => sum + (job.applicants || 0), 0);
-    const averageApplicantsPerJob = totalActiveJobs > 0 ? totalApplicants / totalActiveJobs : 0;
-
-    const postedDates = roleJobs.map(j => j.postedAt);
-    const demandTrend = computeDemandTrend(postedDates);
-
-    const avgDays = roleJobs.reduce((sum, job) => sum + (job.daysSincePosted ?? getDaysSincePosted(job.postedAt)), 0) / Math.max(1, totalActiveJobs);
-    const volumeScore = Math.min(1, totalActiveJobs / 50);
-    const recencyScore = 1 - Math.min(1, avgDays / 45);
-    const trendBonus = demandTrend === "rising" ? 0.1 : demandTrend === "falling" ? -0.05 : 0;
-    const marketDemandScore = clamp01(0.2 + 0.45 * volumeScore + 0.35 * recencyScore + trendBonus);
-
-    const applicantScore = Math.min(1, averageApplicantsPerJob / 400);
-    const densityScore = Math.min(1, totalActiveJobs / 80);
-    const competitionScore = clamp01(0.7 * applicantScore + 0.3 * densityScore);
-
-    const sampleCompanies = Array.from(new Set(roleJobs.map(j => j.company))).slice(0, 5);
-
-    return {
-      roleCategory,
-      totalActiveJobs,
-      averageApplicantsPerJob: Math.round(averageApplicantsPerJob * 10) / 10,
-      demandTrend,
-      marketDemandScore: Math.round(marketDemandScore * 100) / 100,
-      competitionScore: Math.round(competitionScore * 100) / 100,
-      sampleCompanies,
-    };
-  });
-
-  return results.sort((a, b) => b.marketDemandScore - a.marketDemandScore);
 }

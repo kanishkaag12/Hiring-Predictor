@@ -45,7 +45,6 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState("identity");
   const [linkedinModalOpen, setLinkedinModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState(profile?.userType || "");
 
   useEffect(() => {
@@ -281,7 +280,7 @@ export default function Profile() {
                         <DialogContent className="sm:max-w-[500px]">
                           <DialogHeader>
                             <DialogTitle>Select Interest Roles</DialogTitle>
-                            <DialogDescription>Choose 2-6 roles you are targeting. This data drives your dashboard intelligence.</DialogDescription>
+                            <DialogDescription>Choose 2-4 roles you are targeting. This data drives your dashboard intelligence.</DialogDescription>
                           </DialogHeader>
                           <RoleSelector
                             currentRoles={profile?.interestRoles || []}
@@ -292,7 +291,7 @@ export default function Profile() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {profile.interestRoles?.map((role) => (
                           <div key={role} className="flex justify-between items-center p-4 rounded-2xl border border-primary/20 bg-primary/5 group">
                             <span className="text-sm font-bold">{role}</span>
@@ -318,20 +317,19 @@ export default function Profile() {
                             ? "Select at least 2 roles to unlock dashboard intelligence."
                             : "Your profile is being analyzed for these roles."}
                         </p>
-                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <Dialog>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="rounded-xl gap-2 font-bold px-4 hover:bg-primary/5">
                               <Plus className="w-3 h-3" /> Manage Roles
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="sm:max-w-3xl">
+                          <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
                               <DialogTitle>Update Interest Roles</DialogTitle>
                             </DialogHeader>
                             <RoleSelector
                               currentRoles={profile.interestRoles || []}
                               onSave={(roles) => updateInterestRoles.mutate(roles)}
-                              onClose={() => setIsDialogOpen(false)}
                             />
                           </DialogContent>
                         </Dialog>
@@ -1062,7 +1060,7 @@ export default function Profile() {
   );
 }
 
-function RoleSelector({ currentRoles, onSave, onClose }: { currentRoles: string[], onSave: (roles: string[]) => void, onClose?: () => void }) {
+function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave: (roles: string[]) => void }) {
   const [selected, setSelected] = useState<string[]>(currentRoles);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -1072,60 +1070,37 @@ function RoleSelector({ currentRoles, onSave, onClose }: { currentRoles: string[
     "Data Scientist", "Data Analyst", "Product Manager", "UI/UX Designer",
     "DevOps Engineer", "Cloud Architect", "Machine Learning Engineer", "Mobile App Developer",
     "Cybersecurity Analyst", "Solution Architect", "Quality Assurance", "Marketing Associate",
-    "Financial Analyst", "HR Executive", "Business Analyst", "Operations Manager",
-    "Human Resources (HR)", "HR Generalist", "Recruitment Executive", "Talent Acquisition"
+    "Financial Analyst", "HR Executive", "Business Analyst", "Operations Manager"
   ];
 
-  const MAX_ROLES = 6;
-  const isAtCapacity = selected.length >= MAX_ROLES;
-
   const filteredSuggestions = suggestions.filter(role =>
-    role.toLowerCase().includes(search.toLowerCase()) && 
-    !selected.some(s => s.toLowerCase() === role.toLowerCase())
+    role.toLowerCase().includes(search.toLowerCase()) && !selected.includes(role)
   ).slice(0, 6);
 
-  const isDuplicate = (role: string): boolean => {
-    return selected.some(s => s.toLowerCase() === role.toLowerCase());
-  };
-
   const toggleRole = (role: string) => {
-    const trimmedRole = role.trim();
-    if (isDuplicate(trimmedRole)) {
-      setSelected(selected.filter(r => r.toLowerCase() !== trimmedRole.toLowerCase()));
+    if (selected.includes(role)) {
+      setSelected(selected.filter(r => r !== role));
     } else {
-      if (isAtCapacity) {
-        toast({ 
-          title: "Remove a role first", 
-          description: `You have ${MAX_ROLES} roles selected. Click the ✕ to remove one before adding a new role.`, 
-          variant: "destructive" 
-        });
+      if (selected.length >= 4) {
+        toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
         return;
       }
-      setSelected([...selected, trimmedRole]);
+      setSelected([...selected, role]);
       setSearch("");
     }
   };
 
   const handleCustomAdd = () => {
-    const trimmedSearch = search.trim();
-    if (!trimmedSearch) return;
-    
-    if (isDuplicate(trimmedSearch)) {
-      toast({ title: "Already added", description: `"${trimmedSearch}" is already in your selected roles.`, variant: "destructive" });
+    if (!search.trim()) return;
+    if (selected.includes(search.trim())) {
       setSearch("");
       return;
     }
-    
-    if (isAtCapacity) {
-      toast({ 
-        title: "Remove a role first", 
-        description: `You have ${MAX_ROLES} roles selected. Click the ✕ on a role to remove it, then add your custom role.`,
-        variant: "destructive" 
-      });
+    if (selected.length >= 4) {
+      toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
       return;
     }
-    
-    setSelected([...selected, trimmedSearch]);
+    setSelected([...selected, search.trim()]);
     setSearch("");
   };
 
@@ -1135,84 +1110,60 @@ function RoleSelector({ currentRoles, onSave, onClose }: { currentRoles: string[
       return;
     }
     onSave(selected);
-    onClose?.();
   };
 
   return (
-    <div className="space-y-6 py-4 w-full max-w-4xl">
+    <div className="space-y-6 py-4">
       <div className="space-y-4">
-        {/* Input with capacity indicator */}
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              placeholder={isAtCapacity 
-                ? "Remove a role to add a custom one..." 
-                : "Search existing or add custom role (e.g., HR Executive, Recruitment)..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCustomAdd())}
-              className="rounded-xl"
-              disabled={isAtCapacity && !search}
-            />
-            {search.trim() && !isAtCapacity && (
-              <Button onClick={handleCustomAdd} variant="secondary" className="rounded-xl whitespace-nowrap">
-                Add "{search.trim()}"
-              </Button>
-            )}
-          </div>
-          {isAtCapacity && search && (
-            <p className="text-xs text-amber-500 font-medium px-1">
-              🔒 {MAX_ROLES} roles selected (maximum reached). Remove one to add a custom role.
-            </p>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Search or add custom role..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCustomAdd())}
+            className="rounded-xl"
+          />
+          {search && (
+            <Button onClick={handleCustomAdd} variant="secondary" className="rounded-xl">
+              Add
+            </Button>
           )}
         </div>
 
         {/* Selected Roles */}
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest opacity-40 px-1 mb-2">Selected Roles</p>
-          <div className="flex flex-wrap gap-2">
-            <AnimatePresence>
-              {selected.map(role => (
-                <motion.div
-                  key={role}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                >
-                  <Badge 
-                    variant="default" 
-                    className="pl-3 pr-1 py-1.5 gap-1 rounded-full bg-primary text-primary-foreground group hover:bg-primary/90 transition-colors"
+        <div className="flex flex-wrap gap-2">
+          <AnimatePresence>
+            {selected.map(role => (
+              <motion.div
+                key={role}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+              >
+                <Badge variant="default" className="pl-3 pr-1 py-1.5 gap-1 rounded-full bg-primary text-primary-foreground group">
+                  {role}
+                  <button
+                    onClick={() => toggleRole(role)}
+                    className="p-0.5 hover:bg-white/20 rounded-full transition-colors"
                   >
-                    {role}
-                    <button
-                      onClick={() => toggleRole(role)}
-                      className="p-0.5 hover:bg-white/20 rounded-full transition-colors"
-                      title="Remove role"
-                    >
-                      <Plus className="w-3 h-3 rotate-45" />
-                    </button>
-                  </Badge>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+                    <Plus className="w-3 h-3 rotate-45" />
+                  </button>
+                </Badge>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
 
-        {/* Suggestions matching search */}
+        {/* Suggestions */}
         {search && filteredSuggestions.length > 0 && (
           <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Matching Suggestions</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Suggestions</p>
             <div className="flex flex-wrap gap-2">
               {filteredSuggestions.map(role => (
                 <button
                   key={role}
                   onClick={() => toggleRole(role)}
-                  disabled={isAtCapacity}
-                  className={`px-3 py-1.5 rounded-full border text-sm transition-all ${
-                    isAtCapacity 
-                      ? "border-border/30 text-muted-foreground/50 cursor-not-allowed opacity-50" 
-                      : "border-border/40 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-foreground"
-                  }`}
+                  className="px-3 py-1.5 rounded-full border border-border/40 hover:border-primary/40 hover:bg-primary/5 text-sm transition-all text-muted-foreground hover:text-foreground"
                 >
                   {role}
                 </button>
@@ -1224,16 +1175,16 @@ function RoleSelector({ currentRoles, onSave, onClose }: { currentRoles: string[
         {/* Popular Tags (only if nothing searched) */}
         {!search && (
           <div className="space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Popular Roles</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-40 px-1">Common Career Paths</p>
             <div className="flex flex-wrap gap-2">
-              {suggestions.slice(0, 12).map(role => (
+              {suggestions.slice(0, 8).map(role => (
                 <button
                   key={role}
                   onClick={() => toggleRole(role)}
-                  disabled={isDuplicate(role)}
+                  disabled={selected.includes(role)}
                   className={`
                      px-3 py-1.5 rounded-full border text-sm transition-all
-                     ${isDuplicate(role)
+                     ${selected.includes(role)
                       ? "border-primary bg-primary/10 text-primary opacity-50 cursor-not-allowed"
                       : "border-border/40 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-foreground"}
                    `}
@@ -1242,19 +1193,14 @@ function RoleSelector({ currentRoles, onSave, onClose }: { currentRoles: string[
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-muted-foreground italic">
-              💡 Can't find your role? Just type it in the search box above and press Enter!
-              {isAtCapacity && " (Remove a role first to add a custom one)"}
-            </p>
           </div>
         )}
       </div>
 
       <div className="flex flex-col gap-3 pt-6 border-t border-border/40">
         <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
-          <span>{selected.length} of {MAX_ROLES} selected</span>
+          <span>{selected.length} of 4 selected</span>
           {selected.length < 2 && <span className="text-rose-400">Min 2 required</span>}
-          {selected.length === MAX_ROLES && <span className="text-amber-400">Max capacity</span>}
         </div>
         <DialogFooter>
           <Button
