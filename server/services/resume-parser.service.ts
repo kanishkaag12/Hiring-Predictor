@@ -9,50 +9,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-/**
- * Dynamically find the project root directory.
- * Traverses upward from current working directory until finding package.json.
- * This ensures script paths work regardless of where the server is executed from.
- */
-function findProjectRoot(): string {
-  let currentDir = process.cwd();
-  const maxLevels = 10; // Safety limit to prevent infinite loops
-  
-  for (let i = 0; i < maxLevels; i++) {
-    // Check if package.json exists at this level
-    const packageJsonPath = path.join(currentDir, "package.json");
-    if (fs.existsSync(packageJsonPath)) {
-      // Found package.json, check if parent has scripts folder
-      const parentDir = path.dirname(currentDir);
-      const scriptsDir = path.join(parentDir, "scripts");
-      
-      // If scripts folder exists at parent level, use parent as root
-      if (fs.existsSync(scriptsDir)) {
-        return parentDir;
-      }
-      
-      // Otherwise, check if scripts exist at current level
-      const localScriptsDir = path.join(currentDir, "scripts");
-      if (fs.existsSync(localScriptsDir)) {
-        return currentDir;
-      }
-    }
-    
-    // Move up one directory
-    const parentDir = path.dirname(currentDir);
-    
-    // Check if we've reached the root (no more parent directories)
-    if (parentDir === currentDir) {
-      break;
-    }
-    
-    currentDir = parentDir;
-  }
-  
-  // Fallback: assume scripts are in parent of current working directory
-  return path.dirname(process.cwd());
-}
-
 export interface ParsedResumeData {
   skills: string[];
   education: Array<{
@@ -63,6 +19,65 @@ export interface ParsedResumeData {
   experience_months: number;
   projects_count: number;
   resume_completeness_score: number;
+}
+
+/**
+ * Dynamically find the project root directory.
+ * 
+ * The project has a nested structure:
+ * /Hiring-Predictor (outer - contains scripts/)
+ *   /Hiring-Predictor (inner - contains package.json, server/, client/)
+ *     /server (backend - this is where this file runs from)
+ *     /client (frontend)
+ * 
+ * This function traverses up from current working directory to find:
+ * 1. The inner Hiring-Predictor with package.json
+ * 2. Then goes up one more level to find the outer Hiring-Predictor with scripts/
+ * 
+ * This ensures script paths work regardless of working directory at startup.
+ */
+function findProjectRoot(): string {
+  let currentDir = process.cwd();
+  const maxLevels = 10; // Safety limit to prevent infinite loops
+  let innerProjectRoot: string | null = null;
+  
+  console.log(`[Resume Parser] Starting search from: ${currentDir}`);
+  
+  // First, find the inner project root (contains package.json and server/)
+  for (let i = 0; i < maxLevels; i++) {
+    const packageJsonPath = path.join(currentDir, "package.json");
+    const serverPath = path.join(currentDir, "server");
+    
+    if (fs.existsSync(packageJsonPath) && fs.existsSync(serverPath)) {
+      innerProjectRoot = currentDir;
+      console.log(`[Resume Parser] Inner project root found at: ${innerProjectRoot}`);
+      break;
+    }
+    
+    // Move up one directory
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break; // Reached filesystem root
+    }
+    currentDir = parentDir;
+  }
+  
+  // Now find the outer project root (one level above inner, contains scripts/)
+  if (innerProjectRoot) {
+    const outerRoot = path.dirname(innerProjectRoot);
+    const scriptsDir = path.join(outerRoot, "scripts");
+    
+    if (fs.existsSync(scriptsDir)) {
+      console.log(`[Resume Parser] Outer project root detected at: ${outerRoot}`);
+      return outerRoot;
+    }
+  }
+  
+  // Fallback: go up from current directory
+  console.warn("[Resume Parser] Could not find project root structure, using fallback");
+  const fallback = path.dirname(process.cwd());
+  console.warn(`[Resume Parser] Fallback path: ${fallback}`);
+  return fallback;
 }
 
 /**
@@ -131,24 +146,28 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
         "resume_parser.py"
       );
 
+      console.log(`[Resume Parser] Looking for script at: ${pythonScriptPath}`);
+
       // Check if the Python script exists
       if (!fs.existsSync(pythonScriptPath)) {
+        // Provide helpful debugging information
         const searchedLocations = [
           pythonScriptPath,
           path.join(process.cwd(), "scripts", "resume-parser", "resume_parser.py"),
           path.join(process.cwd(), "..", "scripts", "resume-parser", "resume_parser.py"),
         ];
         
-        return reject(
-          new Error(
-            `Resume parser script not found. Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n` +
-            `Project root detected: ${projectRoot}\n` +
-            `Current working directory: ${process.cwd()}`
-          )
-        );
+        const errorMsg = 
+          `Resume parser script not found.\n\n` +
+          `Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n\n` +
+          `Project root detected: ${projectRoot}\n` +
+          `Current working directory: ${process.cwd()}\n\n` +
+          `Ensure the resume_parser.py script exists at:\n${pythonScriptPath}`;
+        
+        return reject(new Error(errorMsg));
       }
 
-      console.log(`[Resume Parser] Using script at: ${pythonScriptPath}`);
+      console.log(`[Resume Parser] Script found. Executing...`);
 
       // Execute the Python script
       const pythonProcess = spawn("python", [pythonScriptPath, filePath], {
@@ -164,7 +183,7 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
 
       pythonProcess.stderr.on("data", (data) => {
         stderr += data.toString();
-        console.error("Python stderr:", data.toString());
+        console.error("[Resume Parser] Python stderr:", data.toString());
       });
 
       pythonProcess.on("close", (code) => {
