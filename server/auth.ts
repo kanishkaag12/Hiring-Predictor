@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { User as UserType, insertUserSchema } from "@shared/schema";
 import jwt from "jsonwebtoken";
 import "./auth-providers";
+import { EmailService } from "./services/email.service";
 
 const scryptAsync = promisify(scrypt);
 const JWT_SECRET = process.env.JWT_SECRET || "hirepulse-jwt-secret-2026";
@@ -259,10 +260,19 @@ export function setupAuth(app: Express) {
 
       await storage.createPasswordResetToken(user.id, token, expiresAt);
 
-      // In production, you would send an email here
-      // For development, we'll log the reset link
+      // Construct reset link
       const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
       console.log("[FORGOT-PASSWORD] Reset link for", email, ":", resetLink);
+
+      // Send reset email
+      try {
+        await EmailService.sendPasswordResetEmail(email, resetLink, user.name);
+        console.log("[FORGOT-PASSWORD] Reset email sent successfully to:", email);
+      } catch (emailError) {
+        console.error("[FORGOT-PASSWORD] Failed to send email:", emailError);
+        // Still return success response to user but log the error
+        // The reset token is already created, so they can use the dev token if needed
+      }
 
       res.status(200).json({ 
         message: "If an account with that email exists, a password reset link has been sent.",

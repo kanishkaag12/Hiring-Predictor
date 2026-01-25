@@ -9,6 +9,21 @@ export interface MarketSnapshot {
   activeCompanies: number;
   highCompetitionRoles: string[];
   trendingSkills: string[];
+  marketStats?: MarketStat[];
+}
+
+export type DemandTrend = "rising" | "stable" | "falling";
+
+export interface MarketStat {
+  roleCategory: string;
+  totalActiveJobs: number;
+  averageApplicantsPerJob: number;
+  demandTrend: DemandTrend;
+  marketDemandScore: number; // 0-1
+  competitionScore: number; // 0-1
+  sampleCompanies: string[];
+  isUserInterestRole?: boolean;
+  isUnavailable?: boolean;
 }
 
 export interface RoleChance {
@@ -48,6 +63,28 @@ export const MOCK_DASHBOARD_DATA = {
     activeCompanies: 120,
     highCompetitionRoles: ["Frontend"],
     trendingSkills: ["React", "SQL", "Node.js"],
+    marketStats: [
+      {
+        roleCategory: "Frontend Engineer",
+        totalActiveJobs: 42,
+        averageApplicantsPerJob: 180,
+        demandTrend: "rising" as const,
+        marketDemandScore: 0.78,
+        competitionScore: 0.66,
+        sampleCompanies: ["Meta", "Stripe", "Atlassian"],
+        isUserInterestRole: true,
+      },
+      {
+        roleCategory: "Backend Engineer",
+        totalActiveJobs: 38,
+        averageApplicantsPerJob: 210,
+        demandTrend: "stable" as const,
+        marketDemandScore: 0.72,
+        competitionScore: 0.71,
+        sampleCompanies: ["Netflix", "Datadog", "Shopify"],
+        isUserInterestRole: false,
+      },
+    ],
   },
   yourChances: [
     { role: "SDE Intern", chance: 68, competition: "High" as const },
