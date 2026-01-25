@@ -107,6 +107,8 @@ app.use((req, res, next) => {
     // It is the only port that is not firewalled.
     const port = 3001;
 
+    console.log("GOOGLE_CLIENT_ID before server start:", process.env.GOOGLE_CLIENT_ID);
+
     httpServer.listen(port, "127.0.0.1", () => {
       log(`Backend running on http://localhost:${port}`);
     });
