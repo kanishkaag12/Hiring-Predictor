@@ -15,11 +15,6 @@ export interface Job {
 
   applyUrl: string;
 
-  // Derived/enriched fields (populated in job.service)
-  applicants?: number;
-  daysSincePosted?: number;
-  analysis?: any;
-
   // HirePulse-specific
   competitionLevel?: "Low" | "Medium" | "High";
   hiringTrend?: "Surge" | "Stable" | "Slowdown";
@@ -68,16 +63,4 @@ export interface CandidateComparison {
   skillStrength: "Above Average" | "Average" | "Below Average";
   projectDepth: "Strong" | "Average" | "Weak";
   skillMatch: { skill: string; match: number; peerAvg: number }[];
-}
-
-export type DemandTrend = "rising" | "stable" | "falling";
-
-export interface MarketStats {
-  roleCategory: string;
-  totalActiveJobs: number;
-  averageApplicantsPerJob: number;
-  demandTrend: DemandTrend;
-  marketDemandScore: number; // 0-1
-  competitionScore: number; // 0-1
-  sampleCompanies: string[];
 }
