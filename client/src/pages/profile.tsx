@@ -511,13 +511,7 @@ export default function Profile() {
                             ? `Last updated ${new Date(profile.resumeUploadedAt).toLocaleDateString()}`
                             : "No resume uploaded"}
                         </p>
-                        {profile.resumeParsingError && (
-                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-xs text-red-600 font-medium">⚠️ Parsing Issue</p>
-                            <p className="text-xs text-red-500 mt-1">{profile.resumeParsingError}</p>
-                            <p className="text-xs text-red-500 mt-2">Try uploading a different resume file or ensure it contains clear structured content.</p>
-                          </div>
-                        )}
+                        {/* Parsing error banner suppressed to prevent user disruption */}
                       </div>
                       <div className="relative">
                         <input

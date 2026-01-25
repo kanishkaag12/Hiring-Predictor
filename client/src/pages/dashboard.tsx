@@ -278,30 +278,8 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="p-6 md:p-12 space-y-12 max-w-7xl mx-auto">
-        {/* Resume Parsing Error Warning */}
-        {hasParsingError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg"
-          >
-            <div className="flex items-start gap-3">
-              <div className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0">⚠️</div>
-              <div className="flex-1">
-                <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm">Resume Parsing Issue</p>
-                <p className="text-amber-800 dark:text-amber-200 text-xs mt-1">{resumeParsingStatus?.error}</p>
-                <p className="text-amber-700 dark:text-amber-300 text-xs mt-2">
-                  Your role predictions may be incomplete. Try uploading a different resume or ensure it contains clear structured content.
-                </p>
-                <Link href="/profile?tab=identity">
-                  <Button variant="outline" size="sm" className="mt-2 text-xs h-7">
-                    Re-upload Resume
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        {/* Resume Parsing Error Warning suppressed intentionally to avoid UX noise */}
+        {/* Intentionally not rendering parsing warnings on dashboard */}
 
         {/* Section 1: Hero Pulse */}
         <motion.div
