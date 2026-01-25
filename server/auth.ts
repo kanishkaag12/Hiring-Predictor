@@ -8,6 +8,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { User as UserType, insertUserSchema } from "@shared/schema";
 import jwt from "jsonwebtoken";
+import "./auth-providers";
 
 const scryptAsync = promisify(scrypt);
 const JWT_SECRET = process.env.JWT_SECRET || "hirepulse-jwt-secret-2026";
@@ -29,6 +30,10 @@ function generateToken(user: UserType) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
     expiresIn: "24h",
   });
+}
+
+function generateResetToken(): string {
+  return randomBytes(32).toString("hex");
 }
 
 const PostgresSessionStore = connectPg(session);
@@ -197,5 +202,147 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
+  });
+
+  // Google OAuth
+  app.get(
+    "/api/auth/google",
+    passport.authenticate("google", { scope: ["profile", "email"] })
+  );
+
+  app.get(
+    "/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/login" }),
+    (req, res) => {
+      // Successful authentication, redirect to dashboard.
+      res.redirect("/dashboard");
+    }
+  );
+
+  // GitHub OAuth
+  app.get(
+    "/api/auth/github",
+    passport.authenticate("github", { scope: ["user:email"] })
+  );
+
+  app.get(
+    "/api/auth/github/callback",
+    passport.authenticate("github", { failureRedirect: "/login" }),
+    (req, res) => {
+      // Successful authentication, redirect to dashboard.
+      res.redirect("/dashboard");
+    }
+  );
+
+  // Forgot Password - Request reset link
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      
+      // Always return success to prevent email enumeration attacks
+      if (!user) {
+        console.log("[FORGOT-PASSWORD] Email not found:", email);
+        return res.status(200).json({ 
+          message: "If an account with that email exists, a password reset link has been sent." 
+        });
+      }
+
+      // Generate reset token
+      const token = generateResetToken();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+      await storage.createPasswordResetToken(user.id, token, expiresAt);
+
+      // In production, you would send an email here
+      // For development, we'll log the reset link
+      const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+      console.log("[FORGOT-PASSWORD] Reset link for", email, ":", resetLink);
+
+      res.status(200).json({ 
+        message: "If an account with that email exists, a password reset link has been sent.",
+        // Only include token in development for testing
+        ...(process.env.NODE_ENV === 'development' && { resetToken: token, resetLink })
+      });
+    } catch (error) {
+      console.error("[FORGOT-PASSWORD] Error:", error);
+      res.status(500).json({ message: "An error occurred. Please try again." });
+    }
+  });
+
+  // Verify reset token
+  app.get("/api/verify-reset-token/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const resetToken = await storage.getPasswordResetToken(token);
+      
+      if (!resetToken) {
+        return res.status(400).json({ valid: false, message: "Invalid reset token" });
+      }
+
+      if (resetToken.used === 1) {
+        return res.status(400).json({ valid: false, message: "This reset link has already been used" });
+      }
+
+      if (new Date() > resetToken.expiresAt) {
+        return res.status(400).json({ valid: false, message: "This reset link has expired" });
+      }
+
+      res.status(200).json({ valid: true });
+    } catch (error) {
+      console.error("[VERIFY-TOKEN] Error:", error);
+      res.status(500).json({ valid: false, message: "An error occurred" });
+    }
+  });
+
+  // Reset Password
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token and password are required" });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const resetToken = await storage.getPasswordResetToken(token);
+      
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid reset token" });
+      }
+
+      if (resetToken.used === 1) {
+        return res.status(400).json({ message: "This reset link has already been used" });
+      }
+
+      if (new Date() > resetToken.expiresAt) {
+        return res.status(400).json({ message: "This reset link has expired" });
+      }
+
+      // Hash the new password
+      const hashedPassword = await hashPassword(password);
+
+      // Update user's password
+      await storage.updateUserPassword(resetToken.userId, hashedPassword);
+
+      // Mark token as used
+      await storage.markTokenAsUsed(token);
+
+      console.log("[RESET-PASSWORD] Password updated for user:", resetToken.userId);
+
+      res.status(200).json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error("[RESET-PASSWORD] Error:", error);
+      res.status(500).json({ message: "An error occurred. Please try again." });
+    }
   });
 }

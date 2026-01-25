@@ -148,6 +148,55 @@
     --warning: 48 96% 53%;
   }
 
+  [data-theme='light'],
+  .light {
+    --background: 210 40% 98%;
+    /* Slate 50 #f8fafc */
+    --foreground: 215 25% 27%;
+    /* Slate 800 #1e293b */
+
+    --card: 0 0% 100%;
+    /* White #ffffff */
+    --card-foreground: 215 25% 27%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 27%;
+
+    --primary: 189 100% 43%;
+    /* slightly darker cyan for contrast on light */
+    --primary-foreground: 240 16% 6%;
+
+    --secondary: 263 83% 71%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 40% 96.1%;
+    /* Slate 100 #f1f5f9 */
+    --muted-foreground: 215 16% 47%;
+    /* Slate 500 #64748b */
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 215 25% 27%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    /* Slate 200 #e2e8f0 */
+    --input: 214.3 31.8% 91.4%;
+    --ring: 189 100% 43%;
+
+    --radius: 0.75rem;
+
+    --chart-1: 189 100% 40%;
+    --chart-2: 263 80% 60%;
+    --chart-3: 142 70% 45%;
+    --chart-4: 43 96% 50%;
+    --chart-5: 12 76% 61%;
+
+    --success: 142 71% 45%;
+    --warning: 45 93% 47%;
+  }
+
   * {
     @apply border-border;
   }
@@ -178,6 +227,7 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }

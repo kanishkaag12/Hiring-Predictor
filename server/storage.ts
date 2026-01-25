@@ -7,7 +7,8 @@ import {
   type Skill, type InsertSkill,
   type Project, type InsertProject,
   type Experience, type InsertExperience,
-  users, favourites, skills, projects, experience
+  type PasswordResetToken,
+  users, favourites, skills, projects, experience, passwordResetTokens
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -37,6 +38,12 @@ export interface IStorage {
   getExperiences(userId: string): Promise<Experience[]>;
   addExperience(exp: InsertExperience): Promise<Experience>;
   deleteExperience(id: string): Promise<void>;
+
+  // Password Reset
+  createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  markTokenAsUsed(token: string): Promise<void>;
+  updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
 }
 
 // Initialize database connection
@@ -59,6 +66,7 @@ class InMemoryStorage implements IStorage {
   private skills: Map<string, Skill> = new Map();
   private projects: Map<string, Project> = new Map();
   private experience: Map<string, Experience> = new Map();
+  private resetTokens: Map<string, PasswordResetToken> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -192,6 +200,40 @@ class InMemoryStorage implements IStorage {
 
   async deleteExperience(id: string): Promise<void> {
     this.experience.delete(id);
+  }
+
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const id = crypto.randomUUID();
+    const resetToken: PasswordResetToken = {
+      id,
+      userId,
+      token,
+      expiresAt,
+      used: 0,
+      createdAt: new Date(),
+    };
+    this.resetTokens.set(token, resetToken);
+    return resetToken;
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    return this.resetTokens.get(token);
+  }
+
+  async markTokenAsUsed(token: string): Promise<void> {
+    const resetToken = this.resetTokens.get(token);
+    if (resetToken) {
+      resetToken.used = 1;
+      this.resetTokens.set(token, resetToken);
+    }
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) {
+      user.password = hashedPassword;
+      this.users.set(userId, user);
+    }
   }
 }
 
@@ -401,6 +443,52 @@ export class PostgresStorage implements IStorage {
       await db.delete(experience).where(eq(experience.id, id));
     } catch (error) {
       console.error("Database error in deleteExperience:", error);
+    }
+  }
+
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(passwordResetTokens).values({
+        userId,
+        token,
+        expiresAt,
+        used: 0,
+      }).returning();
+      return result[0];
+    } catch (error) {
+      console.error("Database error in createPasswordResetToken:", error);
+      throw error;
+    }
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    try {
+      if (useMemoryStorage || !db) return undefined;
+      const result = await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.token, token));
+      return result[0];
+    } catch (error) {
+      console.error("Database error in getPasswordResetToken:", error);
+      return undefined;
+    }
+  }
+
+  async markTokenAsUsed(token: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.update(passwordResetTokens).set({ used: 1 }).where(eq(passwordResetTokens.token, token));
+    } catch (error) {
+      console.error("Database error in markTokenAsUsed:", error);
+    }
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    try {
+      if (useMemoryStorage || !db) return;
+      await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
+    } catch (error) {
+      console.error("Database error in updateUserPassword:", error);
+      throw error;
     }
   }
 }
