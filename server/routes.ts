@@ -2,7 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
-import { fetchJobs } from "./jobs/job.service";
+import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
@@ -277,10 +277,12 @@ export async function registerRoutes(
   app.post("/api/profile/interest-roles", ensureAuthenticated, async (req, res) => {
     const userId = (req.user as User).id;
     const { roles } = req.body;
-    if (!Array.isArray(roles) || roles.length < 1 || roles.length > 4) {
-      return res.status(400).json({ message: "Select between 1 and 4 roles" });
+    if (!Array.isArray(roles) || roles.length < 2 || roles.length > 6) {
+      return res.status(400).json({ message: "Select between 2 and 6 roles" });
     }
-    const updated = await storage.updateUser(userId, { interestRoles: roles });
+    // Normalize: trim and deduplicate (case-insensitive)
+    const normalized = Array.from(new Set(roles.map((r: string) => r.trim())));
+    const updated = await storage.updateUser(userId, { interestRoles: normalized });
     res.json(updated.interestRoles);
   });
 
@@ -729,7 +731,26 @@ export async function registerRoutes(
       roleSkillAnalysis,
       resumeSkillsUsed: resumeSkills,
       // ML-based role predictions (probabilistic, background-agnostic) with user intent
-      mlRolePredictions: enrichedMLPredictions
+      mlRolePredictions: enrichedMLPredictions,
+      // Market statistics aggregated and aligned with user's interest roles
+      marketStats: (() => {
+        const stats = aggregateMarketStats(jobs);
+        return userInterestRoles.map(userRole => {
+          const normalized = userRole.toLowerCase().trim();
+          return stats.find(stat => 
+            stat.roleCategory.toLowerCase() === normalized
+          ) || {
+            roleCategory: userRole,
+            totalActiveJobs: 0,
+            averageApplicantsPerJob: 0,
+            demandTrend: "stable" as const,
+            marketDemandScore: 0,
+            competitionScore: 0,
+            sampleCompanies: [],
+            unavailable: true
+          };
+        });
+      })()
     });
   });
 
