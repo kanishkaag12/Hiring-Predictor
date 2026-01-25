@@ -57,6 +57,18 @@ export interface CompanyHiringPatterns {
   trendData: { month: string; roles: number }[];
 }
 
+export type DemandTrend = "rising" | "stable" | "falling";
+
+export interface MarketStats {
+  roleCategory: string;
+  totalActiveJobs: number;
+  averageApplicantsPerJob: number;
+  demandTrend: DemandTrend;
+  marketDemandScore: number; // 0-1
+  competitionScore: number; // 0-1
+  sampleCompanies: string[];
+}
+
 export interface CandidateComparison {
   peerCount: number;
   percentileRank: number; // Top X%

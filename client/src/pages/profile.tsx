@@ -134,8 +134,8 @@ export default function Profile() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <Card className="overflow-hidden border-none bg-gradient-to-br from-card to-card/50 backdrop-blur-xl shadow-2xl relative">
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/20 via-indigo-500/10 to-transparent pointer-events-none" />
+          <Card className="overflow-hidden border-none bg-linear-to-br from-card to-card/50 backdrop-blur-xl shadow-2xl relative">
+            <div className="absolute top-0 left-0 w-full h-32 bg-linear-to-r from-primary/20 via-indigo-500/10 to-transparent pointer-events-none" />
             <CardContent className="relative pt-12 px-8 pb-10">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="flex gap-6 items-center">
@@ -752,7 +752,7 @@ export default function Profile() {
             {/* TAB 4: INSIGHTS (ANALYTICS & AI) */}
             <TabsContent value="insights" className="space-y-8 mt-0 border-none p-0 outline-none">
               {/* AI Career Assistant Section */}
-              <Card className="border-none bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-transparent shadow-2xl relative overflow-hidden group">
+              <Card className="border-none bg-linear-to-br from-indigo-600/20 via-purple-600/10 to-transparent shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
                   <CloudLightning className="w-48 h-48" />
                 </div>
@@ -934,7 +934,7 @@ export default function Profile() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-none bg-gradient-to-br from-primary/10 to-indigo-500/5 shadow-inner">
+                <Card className="border-none bg-linear-to-br from-primary/10 to-indigo-500/5 shadow-inner">
                   <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
                     {(() => {
                       const totalScore =
@@ -1061,63 +1061,100 @@ export default function Profile() {
 }
 
 function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave: (roles: string[]) => void }) {
+  const MAX_ROLES = 6;
+  const MIN_ROLES = 2;
+  
   const [selected, setSelected] = useState<string[]>(currentRoles);
   const [search, setSearch] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(true);
   const { toast } = useToast();
 
   const suggestions = [
     "Software Engineer", "Frontend Developer", "Backend Developer", "Fullstack Developer",
-    "Data Scientist", "Data Analyst", "Product Manager", "UI/UX Designer",
-    "DevOps Engineer", "Cloud Architect", "Machine Learning Engineer", "Mobile App Developer",
-    "Cybersecurity Analyst", "Solution Architect", "Quality Assurance", "Marketing Associate",
-    "Financial Analyst", "HR Executive", "Business Analyst", "Operations Manager"
+    "Data Scientist", "Data Analyst", "Data Engineer", "ML Engineer", "Product Manager", "UI/UX Designer",
+    "DevOps Engineer", "Cloud Architect", "Mobile App Developer",
+    "Cybersecurity Analyst", "Solution Architect", "QA Engineer", "Business Analyst"
   ];
 
+  // Deduplicate and normalize roles (case-insensitive)
+  const normalizedSelected = Array.from(new Set(selected.map(r => r.trim())));
+
   const filteredSuggestions = suggestions.filter(role =>
-    role.toLowerCase().includes(search.toLowerCase()) && !selected.includes(role)
+    role.toLowerCase().includes(search.toLowerCase()) && 
+    !normalizedSelected.some(s => s.toLowerCase() === role.toLowerCase())
   ).slice(0, 6);
 
   const toggleRole = (role: string) => {
-    if (selected.includes(role)) {
-      setSelected(selected.filter(r => r !== role));
+    const normalized = role.trim();
+    const isSelected = normalizedSelected.some(s => s.toLowerCase() === normalized.toLowerCase());
+    
+    if (isSelected) {
+      setSelected(selected.filter(r => r.toLowerCase() !== normalized.toLowerCase()));
     } else {
-      if (selected.length >= 4) {
-        toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
+      if (normalizedSelected.length >= MAX_ROLES) {
+        toast({ 
+          title: "Limit Reached", 
+          description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`, 
+          variant: "destructive" 
+        });
         return;
       }
-      setSelected([...selected, role]);
+      setSelected([...normalizedSelected, normalized]);
       setSearch("");
     }
   };
 
   const handleCustomAdd = () => {
     if (!search.trim()) return;
-    if (selected.includes(search.trim())) {
+    
+    const normalized = search.trim();
+    const isDuplicate = normalizedSelected.some(s => s.toLowerCase() === normalized.toLowerCase());
+    
+    if (isDuplicate) {
+      toast({ 
+        title: "Already Added", 
+        description: "This role is already in your selection.", 
+        variant: "default" 
+      });
       setSearch("");
       return;
     }
-    if (selected.length >= 4) {
-      toast({ title: "Limit Reached", description: "You can select up to 4 roles.", variant: "destructive" });
+    
+    if (normalizedSelected.length >= MAX_ROLES) {
+      toast({ 
+        title: "Limit Reached", 
+        description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`, 
+        variant: "destructive" 
+      });
       return;
     }
-    setSelected([...selected, search.trim()]);
+    
+    setSelected([...normalizedSelected, normalized]);
     setSearch("");
   };
 
   const handleConfirm = () => {
-    if (selected.length < 2) {
-      toast({ title: "Insufficient Selection", description: "Please select at least 2 roles.", variant: "destructive" });
+    if (normalizedSelected.length < MIN_ROLES) {
+      toast({ 
+        title: "Insufficient Selection", 
+        description: `Please select at least ${MIN_ROLES} roles.`, 
+        variant: "destructive" 
+      });
       return;
     }
-    onSave(selected);
+    onSave(normalizedSelected);
+    setIsDialogOpen(false);
   };
+
+  const remainingSlots = MAX_ROLES - normalizedSelected.length;
+  const capacityStatus = remainingSlots === 0 ? "full" : remainingSlots <= 2 ? "warning" : "normal";
 
   return (
     <div className="space-y-6 py-4">
       <div className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="Search or add custom role..."
+            placeholder={`Search or add custom role... (${remainingSlots} slots left)`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCustomAdd())}
@@ -1130,10 +1167,23 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
           )}
         </div>
 
+        {/* Dynamic Capacity Warning */}
+        {capacityStatus === "full" && (
+          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+            <p className="font-medium">You've reached the {MAX_ROLES} role limit</p>
+            <p className="text-xs opacity-75 mt-1">Remove a role to add a different one</p>
+          </div>
+        )}
+        {capacityStatus === "warning" && (
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-700">
+            <p className="font-medium">Only {remainingSlots} slot{remainingSlots === 1 ? '' : 's'} remaining</p>
+          </div>
+        )}
+
         {/* Selected Roles */}
         <div className="flex flex-wrap gap-2">
           <AnimatePresence>
-            {selected.map(role => (
+            {normalizedSelected.map(role => (
               <motion.div
                 key={role}
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -1145,6 +1195,7 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
                   <button
                     onClick={() => toggleRole(role)}
                     className="p-0.5 hover:bg-white/20 rounded-full transition-colors"
+                    title="Remove role"
                   >
                     <Plus className="w-3 h-3 rotate-45" />
                   </button>
@@ -1181,10 +1232,10 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
                 <button
                   key={role}
                   onClick={() => toggleRole(role)}
-                  disabled={selected.includes(role)}
+                  disabled={normalizedSelected.some(s => s.toLowerCase() === role.toLowerCase())}
                   className={`
                      px-3 py-1.5 rounded-full border text-sm transition-all
-                     ${selected.includes(role)
+                     ${normalizedSelected.some(s => s.toLowerCase() === role.toLowerCase())
                       ? "border-primary bg-primary/10 text-primary opacity-50 cursor-not-allowed"
                       : "border-border/40 hover:border-primary/40 hover:bg-primary/5 text-muted-foreground hover:text-foreground"}
                    `}
@@ -1199,14 +1250,14 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
 
       <div className="flex flex-col gap-3 pt-6 border-t border-border/40">
         <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-muted-foreground px-1">
-          <span>{selected.length} of 4 selected</span>
-          {selected.length < 2 && <span className="text-rose-400">Min 2 required</span>}
+          <span>{normalizedSelected.length} of {MAX_ROLES} selected</span>
+          {normalizedSelected.length < MIN_ROLES && <span className="text-rose-400">Min {MIN_ROLES} required</span>}
         </div>
         <DialogFooter>
           <Button
             className="w-full rounded-xl h-12 font-bold shadow-lg shadow-primary/10"
             onClick={handleConfirm}
-            disabled={selected.length < 2}
+            disabled={normalizedSelected.length < MIN_ROLES}
           >
             Confirm & Initialize AI
           </Button>
