@@ -22,6 +22,32 @@ export interface ParsedResumeData {
 }
 
 /**
+ * Find the Python executable path from the virtual environment.
+ * 
+ * Looks for .venv in the outer project root directory.
+ * Supports both Windows (.venv\Scripts\python.exe) and Unix (.venv/bin/python)
+ * 
+ * Falls back to "python" if .venv not found.
+ */
+function findPythonExecutable(projectRoot: string): string {
+  const isWindows = os.platform() === "win32";
+  const venvPythonPath = path.join(
+    projectRoot,
+    ".venv",
+    isWindows ? "Scripts" : "bin",
+    isWindows ? "python.exe" : "python"
+  );
+
+  if (fs.existsSync(venvPythonPath)) {
+    console.log(`[Resume Parser] Using venv Python: ${venvPythonPath}`);
+    return venvPythonPath;
+  }
+
+  console.warn(`[Resume Parser] .venv not found at ${venvPythonPath}, falling back to system python`);
+  return "python";
+}
+
+/**
  * Dynamically find the project root directory.
  * 
  * The project has a nested structure:
@@ -169,8 +195,11 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
 
       console.log(`[Resume Parser] Script found. Executing...`);
 
+      // Find the Python executable (prefer .venv over system python)
+      const pythonExe = findPythonExecutable(projectRoot);
+
       // Execute the Python script
-      const pythonProcess = spawn("python", [pythonScriptPath, filePath], {
+      const pythonProcess = spawn(pythonExe, [pythonScriptPath, filePath], {
         timeout: 30000, // 30 second timeout
       });
 
