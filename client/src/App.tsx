@@ -14,6 +14,7 @@ import Internships from "@/pages/internships";
 import LandingPage from "@/pages/landing";
 import FavouritesPage from "./pages/favourites";
 import AuthPage from "@/pages/auth";
+import ResetPasswordPage from "@/pages/reset-password";
 import Settings from "@/pages/settings";
 import { ProtectedRoute } from "./lib/protected-route";
 import { AuthProvider } from "@/hooks/use-auth";
@@ -23,6 +24,7 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/jobs" component={PublicJobsPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/app/jobs" component={AppJobsPage} />
