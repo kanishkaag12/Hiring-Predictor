@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, TrendingDown } from "lucide-react";
@@ -11,13 +10,6 @@ interface HiringPulseHeroProps {
 }
 
 export function HiringPulseHero({ score, trend = 0, status }: HiringPulseHeroProps) {
-    const data = [
-        { value: score },
-        { value: 100 - score },
-    ];
-
-    const COLORS = ["hsl(var(--primary))", "hsl(var(--muted))"];
-
     const getStatusColor = (status: string) => {
         switch (status) {
             case "Strong": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/50";
@@ -30,41 +22,8 @@ export function HiringPulseHero({ score, trend = 0, status }: HiringPulseHeroPro
     return (
         <Card className="relative overflow-hidden border-none bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl shadow-2xl">
             <div className="absolute inset-0 bg-primary/5 pointer-events-none" />
-            <CardContent className="p-8 md:p-10 flex flex-col md:flex-row items-center gap-8 md:gap-16">
-                <div className="relative w-48 h-48 md:w-64 md:h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={data}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius="80%"
-                                outerRadius="100%"
-                                startAngle={90}
-                                endAngle={450}
-                                paddingAngle={0}
-                                dataKey="value"
-                                stroke="none"
-                            >
-                                {data.map((_, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <motion.span
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="text-5xl md:text-7xl font-bold tracking-tighter"
-                        >
-                            {score}
-                        </motion.span>
-                        <span className="text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-widest">Readiness</span>
-                    </div>
-                </div>
-
-                <div className="flex-1 space-y-4 text-center md:text-left">
+            <CardContent className="p-8 md:p-10 flex flex-col items-center md:items-start gap-8 md:gap-16">
+                <div className="flex-1 space-y-4 text-center md:text-left w-full">
                     <div className="space-y-2">
                         <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Your Hiring Pulse</h2>
                         <p className="text-muted-foreground text-lg">

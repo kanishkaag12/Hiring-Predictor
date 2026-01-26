@@ -70,6 +70,8 @@ app.use((req, res, next) => {
 (async () => {
   try {
     log("Starting server initialization...", "system");
+    
+    // PostgreSQL connection is initialized in storage.ts via Drizzle ORM
 
     // ====================
     // 1. DATABASE INITIALIZATION
@@ -80,6 +82,8 @@ app.use((req, res, next) => {
     }
     log("PostgreSQL configuration loaded", "database");
 
+    log("Registering routes...", "system");
+    setupAuth(app);
     // ====================
     // 2. DATABASE HEALTH CHECK
     // ====================

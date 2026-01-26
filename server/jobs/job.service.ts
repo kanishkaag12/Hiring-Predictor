@@ -4,6 +4,7 @@ import { fetchRemotiveJobs } from "./sources/remotive.fetcher";
 import { fetchGreenhouseJobs } from "./sources/greenhouse.fetcher";
 import { fetchLeverJobs } from "./sources/lever.fetcher";
 import { analyzeJob } from "./job.analysis";
+import { User, Skill, Project, Experience } from "@shared/schema";
 
 function getDaysSincePosted(postedAt: string): number {
   const postedDate = new Date(postedAt);
@@ -85,7 +86,14 @@ function inferCompanyTags(job: any): string[] {
   return Array.from(new Set(tags)).slice(0, 3);
 }
 
-export async function fetchJobs(filter: JobFilter = {}): Promise<Job[]> {
+export interface UserContext {
+  user: User;
+  skills: Skill[];
+  projects: Project[];
+  experiences: Experience[];
+}
+
+export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContext): Promise<Job[]> {
   const enabledSources = getEnabledBackendSources();
   let allRawJobs: Job[] = [];
 
@@ -119,16 +127,25 @@ export async function fetchJobs(filter: JobFilter = {}): Promise<Job[]> {
     const companySizeTag = inferCompanySize(companyCounts[job.company] || 1);
 
     // 🔥 ANALYSIS LAYER (CORE LOGIC)
-    const analysis = analyzeJob({
-      id: job.id,
-      title: job.title,
-      company: job.company,
-      daysSincePosted,
-      applicants,
-      roleLevel,
-      postedAt: job.postedAt,
-      skills: job.skills,
-    });
+    const analysis = analyzeJob(
+      {
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        daysSincePosted,
+        applicants,
+        roleLevel,
+        postedAt: job.postedAt,
+        skills: job.skills,
+        employmentType: job.employmentType,
+        isInternship,
+        experienceLevel: roleLevel,
+      },
+      userContext?.user,
+      userContext?.skills,
+      userContext?.projects,
+      userContext?.experiences
+    );
 
     return {
       ...job,
@@ -283,7 +300,7 @@ export function aggregateMarketStats(jobs: Job[]): MarketStats[] {
   return results;
 }
 
-export async function fetchJobById(jobId: string): Promise<Job | null> {
-  const jobs = await fetchJobs();
+export async function fetchJobById(jobId: string, userContext?: UserContext): Promise<Job | null> {
+  const jobs = await fetchJobs({}, userContext);
   return jobs.find((job) => job.id === jobId) ?? null;
 }
