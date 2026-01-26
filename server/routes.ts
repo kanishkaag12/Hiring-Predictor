@@ -405,6 +405,29 @@ export async function registerRoutes(
 
       const updated = await storage.updateUser(userId, updateData);
 
+      // 🔄 SYNC PARSED SKILLS TO SKILLS TABLE
+      // This ensures the probability engine uses the latest resume skills
+      if (parsedResume.skills && parsedResume.skills.length > 0) {
+        // Get existing skills to avoid duplicates
+        const existingSkills = await storage.getSkills(userId);
+        const existingSkillNames = new Set(existingSkills.map(s => s.name.toLowerCase()));
+        
+        // Add new skills from resume that don't already exist
+        const newSkillsToAdd = parsedResume.skills.filter(
+          skillName => !existingSkillNames.has(skillName.toLowerCase())
+        );
+        
+        for (const skillName of newSkillsToAdd) {
+          await storage.addSkill({
+            userId: userId,
+            name: skillName,
+            level: "Intermediate" // Beginner | Intermediate | Advanced
+          });
+        }
+        
+        console.log(`✅ Synced ${newSkillsToAdd.length} new skills from resume to skills table`);
+      }
+
       // Calculate role skill match scores from parsed skills
       const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills);
 
