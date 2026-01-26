@@ -3,11 +3,11 @@ import { RoleSpecificIntelligence, RoleSpecificReadiness } from "./role-specific
 
 export interface WhatIfAction {
     type:
-        | "add_skill"
-        | "add_project"
-        | "complete_internship"
-        | "gain_experience"
-        | "improve_resume";
+    | "add_skill"
+    | "add_project"
+    | "complete_internship"
+    | "gain_experience"
+    | "improve_resume";
     description: string;
     skillDetails?: { name: string; level: "Beginner" | "Intermediate" | "Advanced" };
     projectDetails?: {
@@ -69,10 +69,7 @@ export class WhatIfSimulator {
                 userId: user.id,
                 name: action.skillDetails.name,
                 level: action.skillDetails.level,
-                endorsed: 0,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
+            } as any);
         } else if (action.type === "add_project" && action.projectDetails) {
             virtualProjects.push({
                 id: "virtual_" + Date.now(),
@@ -82,10 +79,7 @@ export class WhatIfSimulator {
                 techStack: action.projectDetails.techStack,
                 complexity: action.projectDetails.complexity,
                 githubLink: null,
-                liveLink: null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
+            } as any);
         } else if (action.type === "complete_internship" && action.experienceDetails) {
             virtualExperiences.push({
                 id: "virtual_" + Date.now(),

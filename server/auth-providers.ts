@@ -20,7 +20,7 @@ passport.use(
       clientSecret: GOOGLE_CLIENT_SECRET,
       callbackURL: "/api/auth/google/callback",
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       console.log("Google profile:", profile);
       const email = profile.emails?.[0]?.value;
       if (!email) {
@@ -33,10 +33,7 @@ passport.use(
           user = await storage.createUser({
             email,
             name: profile.displayName,
-            avatarUrl: profile.photos?.[0]?.value,
-            // You might want to generate a random password or leave it null
-            // if you have a separate flow for password resets.
-            password: "", // Or handle this case appropriately
+            password: "",
           });
         }
         return done(null, user);
@@ -55,7 +52,7 @@ passport.use(
       callbackURL: "/api/auth/github/callback",
       scope: ["user:email"],
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       console.log("GitHub profile:", profile);
       const email = profile.emails?.[0]?.value;
       if (!email) {
@@ -67,8 +64,7 @@ passport.use(
           user = await storage.createUser({
             email,
             name: profile.displayName || profile.username,
-            avatarUrl: profile.photos?.[0]?.value,
-            password: "", // Or handle this case appropriately
+            password: "",
           });
         }
         return done(null, user);

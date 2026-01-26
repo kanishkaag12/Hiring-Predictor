@@ -66,12 +66,13 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
-  const { user, loginMutation, registerMutation } = useAuth();
+  const { user, isLoading, loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
 
+  // Redirect if already authenticated
   useEffect(() => {
     if (user) {
       setLocation("/dashboard");
@@ -104,11 +105,21 @@ export default function AuthPage() {
   });
 
   async function onLoginSubmit(data: LoginFormValues) {
-    loginMutation.mutate(data);
+    try {
+      await loginMutation.mutateAsync(data);
+      // Navigation will happen via the useEffect when user updates
+    } catch (error) {
+      // Error already handled by mutation's onError
+    }
   }
 
   async function onSignUpSubmit(data: SignUpFormValues) {
-    registerMutation.mutate(data);
+    try {
+      await registerMutation.mutateAsync(data);
+      // Navigation will happen via the useEffect when user updates
+    } catch (error) {
+      // Error already handled by mutation's onError
+    }
   }
 
   async function onForgotPasswordSubmit(data: ForgotPasswordFormValues) {
@@ -118,6 +129,7 @@ export default function AuthPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
       
       const result = await response.json();
@@ -152,7 +164,7 @@ export default function AuthPage() {
     forgotPasswordForm.reset();
   };
 
-  const isLoading = loginMutation.isPending || registerMutation.isPending;
+  const isFormSubmitting = loginMutation.isPending || registerMutation.isPending;
 
   return (
     <div className="min-h-screen flex items-stretch bg-background overflow-hidden">
@@ -283,8 +295,8 @@ export default function AuthPage() {
                                 </FormItem>
                               )}
                             />
-                            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isLoading}>
-                              {isLoading ? (
+                            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isFormSubmitting}>
+                              {isFormSubmitting ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               ) : (
                                 "Sign In"
@@ -392,8 +404,8 @@ export default function AuthPage() {
                                 )}
                               />
                             </div>
-                            <Button type="submit" className="w-full h-11 text-base font-semibold group" disabled={isLoading}>
-                              {isLoading ? (
+                            <Button type="submit" className="w-full h-11 text-base font-semibold group" disabled={isFormSubmitting}>
+                              {isFormSubmitting ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               ) : (
                                 <>
