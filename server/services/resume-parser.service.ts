@@ -29,7 +29,7 @@ export interface ParsedResumeData {
  * 
  * Falls back to "python" if .venv not found.
  */
-function findPythonExecutable(projectRoot: string): string {
+export function findPythonExecutable(projectRoot: string): string {
   const isWindows = os.platform() === "win32";
   const venvPythonPath = path.join(
     projectRoot,
@@ -65,21 +65,21 @@ function findPythonExecutable(projectRoot: string): string {
 function findProjectRoot(): string {
   let currentDir = process.cwd();
   const maxLevels = 10; // Safety limit to prevent infinite loops
-  let innerProjectRoot: string | null = null;
-  
+
   console.log(`[Resume Parser] Starting search from: ${currentDir}`);
-  
-  // First, find the inner project root (contains package.json and server/)
+
+  // Find the project root (contains package.json, server/, and scripts/)
   for (let i = 0; i < maxLevels; i++) {
     const packageJsonPath = path.join(currentDir, "package.json");
     const serverPath = path.join(currentDir, "server");
-    
-    if (fs.existsSync(packageJsonPath) && fs.existsSync(serverPath)) {
-      innerProjectRoot = currentDir;
-      console.log(`[Resume Parser] Inner project root found at: ${innerProjectRoot}`);
-      break;
+    const scriptsPath = path.join(currentDir, "scripts");
+
+    // Check if this directory has all required folders
+    if (fs.existsSync(packageJsonPath) && fs.existsSync(serverPath) && fs.existsSync(scriptsPath)) {
+      console.log(`[Resume Parser] Project root found at: ${currentDir}`);
+      return currentDir;
     }
-    
+
     // Move up one directory
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) {
@@ -87,23 +87,11 @@ function findProjectRoot(): string {
     }
     currentDir = parentDir;
   }
-  
-  // Now find the outer project root (one level above inner, contains scripts/)
-  if (innerProjectRoot) {
-    const outerRoot = path.dirname(innerProjectRoot);
-    const scriptsDir = path.join(outerRoot, "scripts");
-    
-    if (fs.existsSync(scriptsDir)) {
-      console.log(`[Resume Parser] Outer project root detected at: ${outerRoot}`);
-      return outerRoot;
-    }
-  }
-  
-  // Fallback: go up from current directory
-  console.warn("[Resume Parser] Could not find project root structure, using fallback");
-  const fallback = path.dirname(process.cwd());
-  console.warn(`[Resume Parser] Fallback path: ${fallback}`);
-  return fallback;
+
+  // Fallback: use current working directory
+  console.warn("[Resume Parser] Could not find project root structure, using current directory");
+  console.warn(`[Resume Parser] Fallback path: ${process.cwd()}`);
+  return process.cwd();
 }
 
 /**
@@ -182,14 +170,14 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
           path.join(process.cwd(), "scripts", "resume-parser", "resume_parser.py"),
           path.join(process.cwd(), "..", "scripts", "resume-parser", "resume_parser.py"),
         ];
-        
-        const errorMsg = 
+
+        const errorMsg =
           `Resume parser script not found.\n\n` +
           `Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n\n` +
           `Project root detected: ${projectRoot}\n` +
           `Current working directory: ${process.cwd()}\n\n` +
           `Ensure the resume_parser.py script exists at:\n${pythonScriptPath}`;
-        
+
         return reject(new Error(errorMsg));
       }
 

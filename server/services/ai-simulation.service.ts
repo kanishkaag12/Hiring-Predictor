@@ -13,6 +13,22 @@ export interface AISimulationResponse {
   alternatives: string[];
 }
 
+export interface JobSimulationResponse {
+  whatYouSimulate: string;
+  skillImpacts: Array<{
+    skill: string;
+    currentProbability: number;
+    newProbability: number;
+    percentageIncrease: number;
+    timeToLearn: string;
+    reasoning: string;
+  }>;
+  overallExplanation: string;
+  roi: "High" | "Medium" | "Low";
+  recommendedNextSteps: string[];
+  jobFocusAreas: string[];
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export class AISimulationService {
@@ -132,6 +148,117 @@ Return structured JSON ONLY:
     }
   }
 
+  static async simulateForJob(
+    query: string,
+    jobTitle: string,
+    jobDescription: string,
+    user: User,
+    skills: Skill[],
+    projects: Project[],
+    experiences: Experience[],
+    resumeText?: string
+  ): Promise<JobSimulationResponse> {
+    const cleanQuery = (query || "").trim();
+
+    // Basic abuse/meaningless detection
+    const lower = cleanQuery.toLowerCase();
+    const abusive = /(shut up|stupid|idiot|dumb|fuck|shit|kill|suicide)/i.test(lower);
+    const tooShort = cleanQuery.length < 3;
+    const noLetters = !/[a-zA-Z]/.test(cleanQuery);
+
+    if (abusive || tooShort || noLetters) {
+      return {
+        whatYouSimulate: "Clarification Needed",
+        skillImpacts: [],
+        overallExplanation: "I couldn't quite understand that. To provide a helpful career simulation, please describe a specific action you're considering, like 'What if I learn React?' or 'If I add a backend project'.",
+        roi: "Low",
+        recommendedNextSteps: ["Describe a specific skill or project you want to add"],
+        jobFocusAreas: ["Input Clarification"]
+      };
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return this.mockJobResponse(cleanQuery, jobTitle);
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const systemPrompt = `You are HirePulse AI, a career growth coach.
+    You will analyze a user's profile against a SPECIFIC job description and simulate the impact of a hypothetical action (e.g. learning a skill).
+
+    STRICT RULES:
+    1. Return structured JSON ONLY.
+    2. Be specific to the job description provided.
+    3. ROI must be "High", "Medium", or "Low".
+
+    JSON Format:
+    {
+      "whatYouSimulate": "string",
+      "skillImpacts": [
+        {
+          "skill": "string",
+          "currentProbability": number (0-100),
+          "newProbability": number (0-100),
+          "percentageIncrease": number (positive integer),
+          "timeToLearn": "string",
+          "reasoning": "string"
+        }
+      ],
+      "overallExplanation": "string",
+      "roi": "High | Medium | Low",
+      "recommendedNextSteps": ["string"],
+      "jobFocusAreas": ["string"]
+    }`;
+
+    const profileBlock = this.buildProfileBlock(user, skills, projects, experiences, user.interestRoles || [], resumeText);
+
+    const userPrompt = `
+      JOB CONTEXT:
+      Title: ${jobTitle}
+      Description: ${jobDescription}
+
+      USER HYPOTHETICAL ACTION:
+      "${cleanQuery}"
+
+      ${profileBlock}
+
+      ${systemPrompt}
+      Return ONLY the JSON object, no markdown.`;
+
+    try {
+      const result = await model.generateContent(userPrompt);
+      const text = result.response.text().replace(/```json|```/g, "").trim();
+      return JSON.parse(text);
+    } catch (err) {
+      console.error("AI job simulation error:", err);
+      return this.mockJobResponse(cleanQuery, jobTitle);
+    }
+  }
+
+  private static mockJobResponse(query: string, jobTitle: string): JobSimulationResponse {
+    return {
+      whatYouSimulate: `Adding skills/experience related to "${query}" for the ${jobTitle} role`,
+      skillImpacts: [
+        {
+          skill: query.length > 3 ? query : "Relevant Skill",
+          currentProbability: 45,
+          newProbability: 58,
+          percentageIncrease: 13,
+          timeToLearn: "4-6 weeks",
+          reasoning: `Learning this would directly address key requirements for the ${jobTitle} position.`
+        }
+      ],
+      overallExplanation: "This simulation estimates how your profile strength would improve if you carried out the proposed action. Role-specific requirements drive the probability increases.",
+      roi: "High",
+      recommendedNextSteps: [
+        `Identify specific sub-topics within ${query}`,
+        "Build a small project to demonstrate the new skill",
+        "Update your resume once the skill is acquired"
+      ],
+      jobFocusAreas: ["Technical Proficiency", "Role Alignment"]
+    };
+  }
+
   private static buildProfileBlock(
     user: User,
     skills: Skill[],
@@ -161,17 +288,17 @@ Return structured JSON ONLY:
   private static normalize(data: any, roles: string[]): AISimulationResponse {
     const impactByRole = Array.isArray(data.impactByRole)
       ? data.impactByRole
-          .map((r: any, idx: number) => {
-            const role = r.role || roles[idx] || `Role-${idx + 1}`;
-            const rawImpact = typeof r.impact === "string" ? r.impact : `+${Math.round(Number(r.impact) || 0)}%`;
-            const normalizedImpact = this.clampImpact(rawImpact);
-            return {
-              role,
-              impact: normalizedImpact,
-              reason: r.reason || "Specific relevance to this role"
-            };
-          })
-          .slice(0, Math.max(roles.length, 1))
+        .map((r: any, idx: number) => {
+          const role = r.role || roles[idx] || `Role-${idx + 1}`;
+          const rawImpact = typeof r.impact === "string" ? r.impact : `+${Math.round(Number(r.impact) || 0)}%`;
+          const normalizedImpact = this.clampImpact(rawImpact);
+          return {
+            role,
+            impact: normalizedImpact,
+            reason: r.reason || "Specific relevance to this role"
+          };
+        })
+        .slice(0, Math.max(roles.length, 1))
       : roles.map((role, idx) => ({ role, impact: `+${Math.min(15, 5 + idx * 2)}%`, reason: "Relevant to this role" }));
 
     // Ensure diversity of impacts

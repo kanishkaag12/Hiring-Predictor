@@ -25,11 +25,11 @@ async function hashPassword(password: string) {
 // Smart password comparison with automatic migration from old 64-byte format
 async function comparePasswords(supplied: string, stored: string): Promise<{ match: boolean; needsMigration: boolean }> {
   const [hashed, salt] = stored.split(".");
-  
+
   // Detect old format: 128 hex characters = 64 bytes
   // New format: 64 hex characters = 32 bytes
   const isOldFormat = hashed.length === 128;
-  
+
   if (isOldFormat) {
     // Use old 64-byte comparison for backward compatibility
     const hashedBuf = Buffer.from(hashed, "hex");
@@ -111,7 +111,6 @@ export function setupAuth(app: Express) {
       async (email, password, done) => {
         try {
           console.log("[AUTH] Attempting login for:", email);
-          const user = await storage.getUserByEmail(email);
 
           // Attempt to fetch user (catch DB errors directly)
           let user;
@@ -130,7 +129,7 @@ export function setupAuth(app: Express) {
 
           // Compare passwords with automatic migration support
           const { match, needsMigration } = await comparePasswords(password, user.password);
-          
+
           if (!match) {
             console.log("[AUTH] Password mismatch for:", email);
             return done(null, false, { message: "Invalid email or password" });
@@ -178,7 +177,7 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       console.log("[REGISTER] Data received:", { ...req.body, password: "[REDACTED]" });
-      
+
 
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
@@ -188,7 +187,6 @@ export function setupAuth(app: Express) {
 
       const { email, password } = result.data;
 
-      const existingUser = await storage.getUserByEmail(email);
       let existingUser;
       try {
         existingUser = await storage.getUserByEmail(email);
@@ -202,11 +200,17 @@ export function setupAuth(app: Express) {
         return res.status(400).send("User already exists");
       }
 
-      const hashedPassword = await hashPassword(password);
-      const user = await storage.createUser({
-        ...result.data,
-        password: hashedPassword,
-      });
+      let user;
+      try {
+        const hashedPassword = await hashPassword(password);
+        user = await storage.createUser({
+          ...result.data,
+          password: hashedPassword,
+        });
+      } catch (dbError) {
+        console.error("[REGISTER] Database error creating user:", dbError);
+        return res.status(503).json({ message: "Authentication temporarily unavailable" });
+      }
 
       console.log("[REGISTER] User created, id:", user.id);
 
