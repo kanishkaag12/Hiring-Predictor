@@ -70,7 +70,7 @@ app.use((req, res, next) => {
 (async () => {
   try {
     log("Starting server initialization...", "system");
-    
+
     // PostgreSQL connection is initialized in storage.ts via Drizzle ORM
 
     // ====================
@@ -82,8 +82,6 @@ app.use((req, res, next) => {
     }
     log("PostgreSQL configuration loaded", "database");
 
-    log("Registering routes...", "system");
-    setupAuth(app);
     // ====================
     // 2. DATABASE HEALTH CHECK
     // ====================
@@ -94,7 +92,7 @@ app.use((req, res, next) => {
       console.warn("[system] Check your DATABASE_URL and ensure the database server is reachable");
     } else {
       // Warm up connection pool to reduce cold start latency
-      await warmConnectionPool(5);
+      await warmConnectionPool(2);
     }
 
     // ====================
@@ -107,10 +105,6 @@ app.use((req, res, next) => {
     // 4. REGISTER ROUTES
     // ====================
     log("Registering routes...", "system");
-
-    // Check resume parser availability
-    const { logParserStatus } = await import("./services/resume-parser.service");
-    logParserStatus();
 
     await registerRoutes(httpServer, app);
     log("Routes registered", "system");
