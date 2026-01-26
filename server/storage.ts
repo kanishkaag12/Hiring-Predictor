@@ -71,9 +71,14 @@ const extractHostInfo = (url: string) => {
 const dbHost = extractHostInfo(DATABASE_URL);
 console.log(`[storage] Database URL configured to: ${dbHost}`);
 
-// Initialize database connection
+// Initialize database connection with optimized pool settings for Neon serverless
 export const pool = new Pool({
   connectionString: DATABASE_URL,
+  max: 20,                      // Increased pool size for concurrent requests
+  idleTimeoutMillis: 60000,     // Keep connections alive for 60s to reduce cold starts
+  connectionTimeoutMillis: 5000, // 5s timeout for connection attempts
+  keepAlive: true,              // Enable TCP keepalive to maintain connections
+  keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
 });
 
 // Set up error handlers on the pool
@@ -124,6 +129,7 @@ class InMemoryStorage implements IStorage {
       ...insertUser,
       id,
       username: (insertUser as any).username || insertUser.email.split("@")[0],
+      name: insertUser.name ?? null, // Ensure name is explicitly null if not provided by insertUser
       role: null,
       college: null,
       gradYear: null,
@@ -134,6 +140,13 @@ class InMemoryStorage implements IStorage {
       resumeName: null,
       resumeUploadedAt: null,
       resumeScore: 0,
+      resumeParsedSkills: [],
+      resumeEducation: [],
+      resumeExperienceMonths: null,
+      resumeProjectsCount: null,
+      resumeCompletenessScore: "0",
+      resumeParsingError: null,
+      resumeParsingAttemptedAt: null,
       userType: null,
       interestRoles: [],
     };
@@ -560,7 +573,7 @@ export async function testDatabaseConnection(): Promise<boolean> {
     const client = await pool.connect();
     await client.query("SELECT NOW()");
     client.release();
-    
+
     console.log("[storage] ✓ Database connection successful");
     isHealthy = true;
     lastConnectionError = null;
@@ -568,18 +581,18 @@ export async function testDatabaseConnection(): Promise<boolean> {
   } catch (err) {
     isHealthy = false;
     lastConnectionError = err instanceof Error ? err : new Error(String(err));
-    
+
     const errorMessage = lastConnectionError.message;
     const errorCode = (err as any)?.code || "UNKNOWN";
     const errorDetails = (err as any)?.detail || "";
-    
+
     console.error("[storage] ✗ Database connection FAILED");
     console.error(`[storage] Error Code: ${errorCode}`);
     console.error(`[storage] Error Message: ${errorMessage || "(no message)"}`);
     if (errorDetails) console.error(`[storage] Details: ${errorDetails}`);
     console.error(`[storage] Database Host: ${dbHost}`);
     console.error(`[storage] Connection URL (sanitized): postgresql://***@${dbHost}/neondb`);
-    
+
     // Provide helpful diagnostic information
     if (errorMessage.includes("ENOTFOUND") || errorCode === "ENOTFOUND") {
       console.error(`[storage] ✗ DNS Resolution Failed: Unable to resolve hostname '${dbHost}'`);
@@ -603,8 +616,37 @@ export async function testDatabaseConnection(): Promise<boolean> {
       console.error(`[storage] ✗ Unknown Connection Error`);
       console.error(`[storage]   → Full error: ${err instanceof Error ? err.stack : String(err)}`);
     }
-    
+
     return false;
+  }
+}
+
+/**
+ * Warm up the connection pool by establishing initial connections.
+ * This reduces cold start latency for the first requests.
+ */
+export async function warmConnectionPool(count: number = 3): Promise<void> {
+  if (useMemoryStorage) {
+    console.log("[storage] Skipping connection pool warming (in-memory storage)");
+    return;
+  }
+
+  console.log(`[storage] Warming up connection pool with ${count} connections...`);
+  const clients: any[] = [];
+  
+  try {
+    for (let i = 0; i < count; i++) {
+      const client = await pool.connect();
+      clients.push(client);
+    }
+    console.log(`[storage] ✓ ${count} connections established and ready`);
+    
+    // Release all clients back to pool
+    clients.forEach(client => client.release());
+  } catch (err) {
+    console.error("[storage] Connection pool warming failed:", err);
+    // Release any successful connections
+    clients.forEach(client => client.release());
   }
 }
 

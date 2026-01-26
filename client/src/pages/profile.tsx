@@ -7,12 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  FileText, Github, Linkedin, Mail, MapPin,
+  FileText, Github, Linkedin, MapPin,
   GraduationCap, Briefcase, Plus, Trash2,
-  Edit3, ExternalLink, Code, Layers, Info, CheckCircle2,
-  CloudLightning, TrendingUp, Target, Eye
+  Edit3, Code, Layers, Info, CheckCircle2,
+  CloudLightning, TrendingUp, Target, Eye, Building2
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfile } from "@/hooks/useProfile";
 import React, { useState, useEffect } from "react";
@@ -60,7 +59,7 @@ export default function Profile() {
   const generateInsights = async () => {
     setIsGenerating(true);
     try {
-      const res = await fetch("/api/profile/ai-insights");
+      const res = await fetch("/api/profile/ai-insights", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to generate insights");
       const data = await res.json();
       setInsights(data);
@@ -105,17 +104,17 @@ export default function Profile() {
     try {
       const result = await uploadResume.mutateAsync(file);
       const skillCount = result?.parsedResume?.skills?.length || 0;
-      
+
       if (result?.parsingError) {
-        toast({ 
-          title: "Resume Uploaded (Parsing Issue)", 
+        toast({
+          title: "Resume Uploaded (Parsing Issue)",
           description: result.parsingError,
           variant: "destructive"
         });
       } else {
-        toast({ 
-          title: "Resume Uploaded & Analyzed", 
-          description: skillCount > 0 
+        toast({
+          title: "Resume Uploaded & Analyzed",
+          description: skillCount > 0
             ? `Extracted ${skillCount} skills. Dashboard updated with new role predictions.`
             : "Resume processed. Visit dashboard for updated insights."
         });
@@ -143,7 +142,7 @@ export default function Profile() {
                     <Avatar className="w-28 h-28 border-4 border-background shadow-2xl group-hover:scale-105 transition-transform duration-300">
                       <AvatarImage src="" />
                       <AvatarFallback className="text-3xl font-bold bg-primary text-primary-foreground">
-                        {profile.name?.split(' ').map(n => n[0]).join('') || 'U'}
+                        {profile.name?.split(' ')?.map(n => n[0])?.join('') || 'U'}
                       </AvatarFallback>
                     </Avatar>
                     <div className="absolute bottom-0 right-0 p-1.5 bg-background rounded-full border border-border cursor-pointer hover:bg-accent transition-colors">
@@ -535,7 +534,11 @@ export default function Profile() {
                           <Button
                             variant="outline"
                             className="w-full rounded-xl gap-2 h-10 mt-2"
-                            onClick={() => window.open(profile.resumeUrl, '_blank', 'noopener,noreferrer')}
+                            onClick={() => {
+                              if (profile.resumeUrl) {
+                                window.open(profile.resumeUrl, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
                             aria-label="View uploaded resume in new tab"
                           >
                             <Eye className="w-4 h-4" />
@@ -787,7 +790,7 @@ export default function Profile() {
                         <div className="space-y-3">
                           <h4 className="font-bold text-sm uppercase tracking-widest text-emerald-400">Key Strengths</h4>
                           <div className="space-y-2">
-                            {insights.strengths.map((s: string, i: number) => (
+                            {insights.strengths?.map((s: string, i: number) => (
                               <div key={i} className="flex gap-2 items-start text-sm bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
                                 <span>{s}</span>
@@ -798,7 +801,7 @@ export default function Profile() {
                         <div className="space-y-3">
                           <h4 className="font-bold text-sm uppercase tracking-widest text-primary">Recommendations</h4>
                           <div className="space-y-2">
-                            {insights.recommendations.map((r: string, i: number) => (
+                            {insights.recommendations?.map((r: string, i: number) => (
                               <div key={i} className="flex gap-2 items-start text-sm bg-primary/5 p-3 rounded-xl border border-primary/10">
                                 <TrendingUp className="w-4 h-4 text-primary mt-0.5" />
                                 <span>{r}</span>
@@ -1057,10 +1060,9 @@ export default function Profile() {
 function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave: (roles: string[]) => void }) {
   const MAX_ROLES = 6;
   const MIN_ROLES = 2;
-  
+
   const [selected, setSelected] = useState<string[]>(currentRoles);
   const [search, setSearch] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(true);
   const { toast } = useToast();
 
   const suggestions = [
@@ -1074,22 +1076,22 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
   const normalizedSelected = Array.from(new Set(selected.map(r => r.trim())));
 
   const filteredSuggestions = suggestions.filter(role =>
-    role.toLowerCase().includes(search.toLowerCase()) && 
+    role.toLowerCase().includes(search.toLowerCase()) &&
     !normalizedSelected.some(s => s.toLowerCase() === role.toLowerCase())
   ).slice(0, 6);
 
   const toggleRole = (role: string) => {
     const normalized = role.trim();
     const isSelected = normalizedSelected.some(s => s.toLowerCase() === normalized.toLowerCase());
-    
+
     if (isSelected) {
       setSelected(selected.filter(r => r.toLowerCase() !== normalized.toLowerCase()));
     } else {
       if (normalizedSelected.length >= MAX_ROLES) {
-        toast({ 
-          title: "Limit Reached", 
-          description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`, 
-          variant: "destructive" 
+        toast({
+          title: "Limit Reached",
+          description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`,
+          variant: "destructive"
         });
         return;
       }
@@ -1100,44 +1102,43 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
 
   const handleCustomAdd = () => {
     if (!search.trim()) return;
-    
+
     const normalized = search.trim();
     const isDuplicate = normalizedSelected.some(s => s.toLowerCase() === normalized.toLowerCase());
-    
+
     if (isDuplicate) {
-      toast({ 
-        title: "Already Added", 
-        description: "This role is already in your selection.", 
-        variant: "default" 
+      toast({
+        title: "Already Added",
+        description: "This role is already in your selection.",
+        variant: "default"
       });
       setSearch("");
       return;
     }
-    
+
     if (normalizedSelected.length >= MAX_ROLES) {
-      toast({ 
-        title: "Limit Reached", 
-        description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`, 
-        variant: "destructive" 
+      toast({
+        title: "Limit Reached",
+        description: `You can select up to ${MAX_ROLES} roles. Remove one to add another.`,
+        variant: "destructive"
       });
       return;
     }
-    
+
     setSelected([...normalizedSelected, normalized]);
     setSearch("");
   };
 
   const handleConfirm = () => {
     if (normalizedSelected.length < MIN_ROLES) {
-      toast({ 
-        title: "Insufficient Selection", 
-        description: `Please select at least ${MIN_ROLES} roles.`, 
-        variant: "destructive" 
+      toast({
+        title: "Insufficient Selection",
+        description: `Please select at least ${MIN_ROLES} roles.`,
+        variant: "destructive"
       });
       return;
     }
     onSave(normalizedSelected);
-    setIsDialogOpen(false);
   };
 
   const remainingSlots = MAX_ROLES - normalizedSelected.length;
@@ -1261,27 +1262,3 @@ function RoleSelector({ currentRoles, onSave }: { currentRoles: string[], onSave
   );
 }
 
-function Building2(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
-      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
-      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
-      <path d="M10 6h4" />
-      <path d="M10 10h4" />
-      <path d="M10 14h4" />
-      <path d="M10 18h4" />
-    </svg>
-  );
-}

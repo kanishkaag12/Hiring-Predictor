@@ -8,10 +8,11 @@ export function ProtectedRoute({
   component: Component,
 }: {
   path: string;
-  component: () => React.JSX.Element;
+  component: React.ComponentType<any>;
 }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
 
+  // Wait for authentication check to complete
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -20,9 +21,11 @@ export function ProtectedRoute({
     );
   }
 
-  if (!user) {
+  // Redirect to auth page if not authenticated
+  if (!isAuthenticated || !user) {
     return <Route path={path} component={() => <Redirect to="/auth" />} />;
   }
 
+  // User is authenticated - render protected component
   return <Route path={path} component={Component} />;
 }
