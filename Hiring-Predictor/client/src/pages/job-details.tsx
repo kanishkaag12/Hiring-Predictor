@@ -132,7 +132,7 @@ export default function JobDetails() {
                     Where you stand vs other applicants
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-[250px] p-0">
+                <CardContent className="h-62.5 p-0">
                   <PeerClusterMap data={peerData} />
                 </CardContent>
               </Card>

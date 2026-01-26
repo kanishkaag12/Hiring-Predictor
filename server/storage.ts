@@ -46,6 +46,9 @@ export interface IStorage {
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
 }
 
+// Initialize database connection
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
 // ====================
 // DATABASE INITIALIZATION
 // ====================
