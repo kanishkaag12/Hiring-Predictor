@@ -8,6 +8,8 @@ import { CheckCircle2, TrendingUp, Users, Activity, Briefcase } from "lucide-rea
 import {
     ResponsiveContainer,
 } from "recharts";
+import { JobWhatIfSimulator } from "./JobWhatIfSimulator";
+import { useProfile } from "@/hooks/useProfile";
 
 interface AnalysisModalProps {
     isOpen: boolean;
@@ -17,6 +19,7 @@ interface AnalysisModalProps {
 
 export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
     const [stage, setStage] = useState<"analyzing" | "complete">("analyzing");
+    const { profile } = useProfile();
 
     useEffect(() => {
         if (isOpen) {
@@ -30,7 +33,7 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-screen h-screen max-w-none rounded-none border-none bg-gradient-to-b from-background via-background to-muted/20 p-0 shadow-none flex flex-col overflow-hidden">
+            <DialogContent className="w-screen h-screen max-w-none rounded-none border-none bg-linear-to-b from-background via-background to-muted/20 p-0 shadow-none flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                     {stage === "analyzing" ? (
                         <motion.div
@@ -61,23 +64,18 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                             className="flex flex-col h-full"
                         >
                             {/* Header - Job Info Only */}
-                            <div className="px-8 pt-6 pb-4 border-b bg-gradient-to-r from-muted/50 to-muted/30 flex items-center justify-between shrink-0">
+                            <div className="px-8 pt-6 pb-4 border-b bg-linear-to-r from-muted/50 to-muted/30 flex items-center justify-between shrink-0">
                                 <h2 className="text-3xl font-bold flex items-center gap-3">
                                     {job.company} 
                                     <Badge variant="secondary" className="text-xs font-medium">{job.title}</Badge>
                                 </h2>
-                                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
                             </div>
 
                             <ScrollArea className="flex-1 w-full overflow-hidden">
                                 <div className="w-full h-full px-8 py-8">
                                     <div className="space-y-12 max-w-6xl mx-auto pb-8">
                                     {/* Main Probability Card - Prominent */}
-                                    <div className="bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-primary/40 rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-6">
+                                    <div className="bg-linear-to-br from-primary/15 to-primary/5 border-2 border-primary/40 rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-6">
                                         <div className="text-base font-bold text-primary uppercase tracking-widest">Your Shortlist Score</div>
                                         <div className="text-8xl font-black text-primary">{job.analysis.probability}%</div>
                                         <div className="text-lg text-muted-foreground max-w-xl">
@@ -133,48 +131,28 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                         </div>
                                     )}
 
-                                    {/* Strengths & Weaknesses */}
-                                    {(job.analysis.strengths?.length > 0 || job.analysis.weaknesses?.length > 0) && (
-                                        <div className="space-y-8">
-                                            <h3 className="text-2xl font-bold">Your Profile Analysis</h3>
-                                            <div className="grid md:grid-cols-2 gap-8">
-                                                {job.analysis.strengths?.length > 0 && (
-                                                    <div className="bg-gradient-to-br from-green-50/50 to-green-50/25 dark:from-green-950/30 dark:to-green-950/20 border border-green-200/50 dark:border-green-800/30 rounded-2xl p-8">
-                                                        <h4 className="font-bold mb-6 text-green-700 dark:text-green-400 flex items-center gap-3 text-lg">
-                                                            <span className="text-2xl">✓</span> Your Strengths
-                                                        </h4>
-                                                        <ul className="space-y-4">
-                                                            {job.analysis.strengths.map((str: string, i: number) => (
-                                                                <li key={i} className="text-base flex gap-3">
-                                                                    <span className="text-green-600 dark:text-green-400 font-bold mt-1">•</span>
-                                                                    <span className="text-foreground">{str}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
-                                                {job.analysis.weaknesses?.length > 0 && (
-                                                    <div className="bg-gradient-to-br from-orange-50/50 to-orange-50/25 dark:from-orange-950/30 dark:to-orange-950/20 border border-orange-200/50 dark:border-orange-800/30 rounded-2xl p-8">
-                                                        <h4 className="font-bold mb-6 text-orange-700 dark:text-orange-400 flex items-center gap-3 text-lg">
-                                                            <span className="text-2xl">⚠</span> Areas to Improve
-                                                        </h4>
-                                                        <ul className="space-y-4">
-                                                            {job.analysis.weaknesses.map((weak: string, i: number) => (
-                                                                <li key={i} className="text-base flex gap-3">
-                                                                    <span className="text-orange-600 dark:text-orange-400 font-bold mt-1">•</span>
-                                                                    <span className="text-foreground">{weak}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
+
+
+                                    {/* What-If Simulator for this specific job */}
+                                    {profile && (
+                                        <div>
+                                            <div className="mb-8">
+                                                <h3 className="text-2xl font-bold mb-3 flex items-center gap-3">
+                                                    <TrendingUp className="w-7 h-7 text-primary" />
+                                                    Improve Your Chances
+                                                </h3>
+                                                <p className="text-base text-muted-foreground">See exactly which skills would boost your probability for this role</p>
                                             </div>
+                                            <JobWhatIfSimulator 
+                                                job={job} 
+                                                userProfile={profile}
+                                            />
                                         </div>
                                     )}
 
                                     {/* Recommendations */}
                                     {job.analysis.actions?.length > 0 && (
-                                        <div className="bg-gradient-to-br from-blue-50/50 to-blue-50/25 dark:from-blue-950/30 dark:to-blue-950/20 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-8 space-y-6">
+                                        <div className="bg-linear-to-br from-blue-50/50 to-blue-50/25 dark:from-blue-950/30 dark:to-blue-950/20 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-8 space-y-6">
                                             <h4 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-3 text-lg">
                                                 <span className="text-2xl">💡</span> Recommendations to Improve
                                             </h4>
@@ -193,7 +171,7 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                             </ScrollArea>
 
                             {/* Footer */}
-                            <div className="px-8 py-6 border-t bg-gradient-to-r from-muted/50 to-muted/30 flex justify-end gap-4 shrink-0">
+                            <div className="px-8 py-6 border-t bg-linear-to-r from-muted/50 to-muted/30 flex justify-end gap-4 shrink-0">
                                 <Button variant="outline" size="lg" onClick={onClose}>Close</Button>
                                 <Button size="lg" className="px-10 font-semibold" onClick={() => window.open(job.applyUrl, '_blank')}>
                                     Apply Now

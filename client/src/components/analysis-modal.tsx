@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { CheckCircle2, TrendingUp, Users, Activity, Briefcase } from "lucide-react";
+import { CheckCircle2, TrendingUp, Users, Activity, Briefcase, AlertCircle, Zap } from "lucide-react";
 import {
     ResponsiveContainer,
 } from "recharts";
+import { JobWhatIfSimulator } from "./JobWhatIfSimulator";
+import { useProfile } from "@/hooks/useProfile";
 
 interface AnalysisModalProps {
     isOpen: boolean;
@@ -17,6 +19,7 @@ interface AnalysisModalProps {
 
 export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
     const [stage, setStage] = useState<"analyzing" | "complete">("analyzing");
+    const { profile } = useProfile();
 
     useEffect(() => {
         if (isOpen) {
@@ -28,9 +31,74 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
         }
     }, [isOpen]);
 
+    // Helper function to interpret score and generate microcopy
+    const getScoreInterpretation = (probability: number) => {
+        if (probability >= 70) {
+            return {
+                emoji: "🌟",
+                label: "Strong Match",
+                recommendation: "Highly Recommended to Apply",
+                description: "You meet most of the core requirements. Your chances of getting shortlisted are strong.",
+                color: "from-green-500/20 to-green-500/5 border-green-500/50"
+            };
+        } else if (probability >= 50) {
+            return {
+                emoji: "👍",
+                label: "Good Match",
+                recommendation: "Recommended to Apply",
+                description: "You have solid fundamentals. Applying is worth it—focus on highlighting your strengths.",
+                color: "from-blue-500/20 to-blue-500/5 border-blue-500/50"
+            };
+        } else if (probability >= 30) {
+            return {
+                emoji: "⚠️",
+                label: "Moderate Match",
+                recommendation: "Consider Preparing First",
+                description: "You have potential but would benefit from filling some skill gaps before applying.",
+                color: "from-yellow-500/20 to-yellow-500/5 border-yellow-500/50"
+            };
+        } else {
+            return {
+                emoji: "❌",
+                label: "Challenging Match",
+                recommendation: "Focus on Building Skills",
+                description: "This role requires expertise you're still developing. Build skills first, then apply.",
+                color: "from-red-500/20 to-red-500/5 border-red-500/50"
+            };
+        }
+    };
+
+    // Helper to find weakest factor
+    const getWeakestFactor = () => {
+        if (!job.analysis.factors) return null;
+        const factors = [
+            { name: "Skill Fit", value: job.analysis.factors.skillFit },
+            { name: "Profile Match", value: job.analysis.factors.profileMatch },
+            { name: "Market Context", value: job.analysis.factors.marketContext },
+            { name: "Company Signals", value: job.analysis.factors.companySignals }
+        ];
+        return factors.reduce((min, f) => f.value < min.value ? f : min);
+    };
+
+    // Helper to get factor priority color
+    const getFactorColor = (value: number) => {
+        if (value < 40) return "from-red-500/20 to-red-500/5 border-red-500/50 bg-red-500/10";
+        if (value < 60) return "from-yellow-500/20 to-yellow-500/5 border-yellow-500/50 bg-yellow-500/10";
+        return "from-green-500/20 to-green-500/5 border-green-500/50 bg-green-500/10";
+    };
+
+    const getFactorLabel = (value: number) => {
+        if (value < 40) return "🔴 Critical Gap";
+        if (value < 60) return "🟡 Improve";
+        return "🟢 Strong";
+    };
+
+    const scoreData = getScoreInterpretation(job.analysis.probability);
+    const weakestFactor = getWeakestFactor();
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-screen h-screen max-w-none rounded-none border-none bg-gradient-to-b from-background via-background to-muted/20 p-0 shadow-none flex flex-col overflow-hidden">
+            <DialogContent className="max-w-4xl max-h-[90vh] rounded-2xl border-2 border-primary/30 bg-linear-to-b from-background via-background to-muted/20 p-0 shadow-2xl flex flex-col overflow-hidden">
                 <AnimatePresence mode="wait">
                     {stage === "analyzing" ? (
                         <motion.div
@@ -58,123 +126,164 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                             key="complete"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="flex flex-col h-full"
+                            className="flex flex-col h-screen w-full"
                         >
                             {/* Header - Job Info Only */}
-                            <div className="px-8 pt-6 pb-4 border-b bg-gradient-to-r from-muted/50 to-muted/30 flex items-center justify-between shrink-0">
-                                <h2 className="text-3xl font-bold flex items-center gap-3">
+                            <div className="px-8 pt-6 pb-4 border-b bg-linear-to-r from-background to-muted/20 flex items-center justify-between shrink-0">
+                                <h2 className="text-2xl font-bold flex items-center gap-3">
                                     {job.company} 
                                     <Badge variant="secondary" className="text-xs font-medium">{job.title}</Badge>
                                 </h2>
-                                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
                             </div>
 
-                            <ScrollArea className="flex-1 w-full overflow-hidden">
-                                <div className="w-full h-full px-8 py-8">
-                                    <div className="space-y-12 max-w-6xl mx-auto pb-8">
-                                    {/* Main Probability Card - Prominent */}
-                                    <div className="bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-primary/40 rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-6">
-                                        <div className="text-base font-bold text-primary uppercase tracking-widest">Your Shortlist Score</div>
-                                        <div className="text-8xl font-black text-primary">{job.analysis.probability}%</div>
-                                        <div className="text-lg text-muted-foreground max-w-xl">
-                                            Based on your real profile, skills, and experience
-                                        </div>
-                                        <div className="mt-6 pt-6 border-t border-primary/30 w-full">
-                                            <p className="text-base text-muted-foreground font-medium">
-                                                {job.analysis.probability >= 70 ? "✨ Strong fit - Apply now!" : job.analysis.probability >= 45 ? "👍 Decent fit - Worth exploring" : "💪 Challenging fit - Focus on gaps"}
+                            <ScrollArea className="flex-1 w-full">
+                                <div className="w-full px-8 py-8">
+                                    <div className="space-y-12 max-w-6xl mx-auto pb-20">
+                                    {/* Main Probability Card - Decision Zone */}
+                                    <motion.div 
+                                        initial={{ scale: 0.9, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        className={`bg-linear-to-br ${scoreData.color} border-2 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4 w-full`}
+                                    >
+                                        <div className="text-2xl font-black text-primary uppercase tracking-widest">YOUR SHORTLIST SCORE</div>
+                                        <div className="text-7xl font-black text-primary">{job.analysis.probability}%</div>
+                                        
+                                        <div className="space-y-2 pt-4">
+                                            <div className="text-xl font-bold text-foreground">
+                                                {scoreData.emoji} {scoreData.label}
+                                            </div>
+                                            <div className="text-base font-semibold text-primary">
+                                                {scoreData.recommendation}
+                                            </div>
+                                            <p className="text-sm text-muted-foreground max-w-lg">
+                                                {scoreData.description}
                                             </p>
                                         </div>
-                                    </div>
+
+                                        {/* Benchmark Context */}
+                                        <div className="pt-6 border-t border-primary/30 w-full space-y-2">
+                                            <div className="text-xs text-muted-foreground">Context</div>
+                                            <div className="flex justify-around text-sm">
+                                                <div>
+                                                    <div className="font-bold text-foreground">{job.analysis.probability}%</div>
+                                                    <div className="text-xs text-muted-foreground">Your Score</div>
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-foreground">72%</div>
+                                                    <div className="text-xs text-muted-foreground">Avg Shortlisted</div>
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-foreground">35%</div>
+                                                    <div className="text-xs text-muted-foreground">Avg Applicants</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+
+                                    {/* Biggest Gap - Diagnostic Section */}
+                                    {weakestFactor && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className={`bg-linear-to-br ${getFactorColor(weakestFactor.value)} border-2 rounded-2xl p-6 space-y-4`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <AlertCircle className="w-5 h-5" />
+                                                <h3 className="font-bold text-lg">What's Holding You Back</h3>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-semibold">{weakestFactor.name}</span>
+                                                    <span className="text-sm font-bold">{getFactorLabel(weakestFactor.value)}</span>
+                                                </div>
+                                                <div className="w-full bg-muted rounded-full h-2">
+                                                    <div 
+                                                        className="bg-gradient-to-r from-primary to-primary/60 h-2 rounded-full transition-all"
+                                                        style={{ width: `${weakestFactor.value}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-sm text-muted-foreground pt-2">
+                                                    {weakestFactor.name === "Skill Fit" && "You're missing expertise in specialized areas. Most candidates for this role have advanced knowledge here."}
+                                                    {weakestFactor.name === "Profile Match" && "Your experience level differs from typical candidates. Consider roles better aligned with your seniority."}
+                                                    {weakestFactor.name === "Market Context" && "Market conditions affect your chances. But don't let this discourage you—applying is still worth it."}
+                                                    {weakestFactor.name === "Company Signals" && "This company isn't actively hiring for your profile. But strong candidates still get opportunities."}
+                                                </p>
+                                            </div>
+                                            <div className="pt-4 border-t border-muted flex gap-3">
+                                                <Zap className="w-5 h-5 text-primary flex-shrink-0" />
+                                                <div className="text-sm">
+                                                    <span className="font-semibold">Opportunity:</span> Improving {weakestFactor.name.toLowerCase()} could boost your score by <span className="text-primary font-bold">+12-16%</span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
 
                                     {/* Analysis Breakdown - 4 Pillar Scores */}
                                     {job.analysis.factors && (
-                                        <div className="space-y-6">
+                                        <div className="space-y-8">
                                             <div>
-                                                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                                                    <TrendingUp className="w-6 h-6 text-primary" />
-                                                    Score Breakdown
+                                                <h3 className="text-2xl font-bold mb-3 flex items-center gap-3">
+                                                    <TrendingUp className="w-7 h-7 text-primary" />
+                                                    Full Score Breakdown
                                                 </h3>
-                                                <p className="text-sm text-muted-foreground mb-6">How your profile stacks up across different dimensions</p>
+                                                <p className="text-base text-muted-foreground">How your profile scores across all dimensions</p>
                                             </div>
-                                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                                                 <Card
                                                     title="Profile Match"
                                                     value={`${job.analysis.factors.profileMatch}%`}
                                                     desc="Experience fit"
-                                                    icon={<Briefcase className="w-5 h-5" />}
+                                                    icon={<Briefcase className="w-6 h-6" />}
                                                     highlight={job.analysis.factors.profileMatch > 60}
                                                 />
                                                 <Card
                                                     title="Skill Fit"
                                                     value={`${job.analysis.factors.skillFit}%`}
                                                     desc="Skills match"
-                                                    icon={<Activity className="w-5 h-5" />}
+                                                    icon={<Activity className="w-6 h-6" />}
                                                     highlight={job.analysis.factors.skillFit > 60}
                                                 />
                                                 <Card
                                                     title="Market Context"
                                                     value={`${job.analysis.factors.marketContext}%`}
                                                     desc="Market opportunity"
-                                                    icon={<TrendingUp className="w-5 h-5" />}
+                                                    icon={<TrendingUp className="w-6 h-6" />}
                                                     highlight={job.analysis.factors.marketContext > 60}
                                                 />
                                                 <Card
                                                     title="Company Signals"
                                                     value={`${job.analysis.factors.companySignals}%`}
                                                     desc="Hiring activity"
-                                                    icon={<Users className="w-5 h-5" />}
+                                                    icon={<Users className="w-6 h-6" />}
                                                     highlight={job.analysis.factors.companySignals > 60}
                                                 />
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Strengths & Weaknesses */}
-                                    {(job.analysis.strengths?.length > 0 || job.analysis.weaknesses?.length > 0) && (
-                                        <div className="space-y-6">
-                                            <h3 className="text-xl font-bold">Your Profile Analysis</h3>
-                                            <div className="grid md:grid-cols-2 gap-6">
-                                                {job.analysis.strengths?.length > 0 && (
-                                                    <div className="bg-gradient-to-br from-green-50/50 to-green-50/25 dark:from-green-950/30 dark:to-green-950/20 border border-green-200/50 dark:border-green-800/30 rounded-xl p-6">
-                                                        <h4 className="font-bold mb-4 text-green-700 dark:text-green-400 flex items-center gap-2">
-                                                            <span className="text-lg">✓</span> Your Strengths
-                                                        </h4>
-                                                        <ul className="space-y-3">
-                                                            {job.analysis.strengths.map((str: string, i: number) => (
-                                                                <li key={i} className="text-sm flex gap-3">
-                                                                    <span className="text-green-600 dark:text-green-400 font-bold mt-0.5">•</span>
-                                                                    <span className="text-foreground">{str}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
-                                                {job.analysis.weaknesses?.length > 0 && (
-                                                    <div className="bg-gradient-to-br from-orange-50/50 to-orange-50/25 dark:from-orange-950/30 dark:to-orange-950/20 border border-orange-200/50 dark:border-orange-800/30 rounded-xl p-6">
-                                                        <h4 className="font-bold mb-4 text-orange-700 dark:text-orange-400 flex items-center gap-2">
-                                                            <span className="text-lg">⚠</span> Areas to Improve
-                                                        </h4>
-                                                        <ul className="space-y-3">
-                                                            {job.analysis.weaknesses.map((weak: string, i: number) => (
-                                                                <li key={i} className="text-sm flex gap-3">
-                                                                    <span className="text-orange-600 dark:text-orange-400 font-bold mt-0.5">•</span>
-                                                                    <span className="text-foreground">{weak}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                )}
+
+
+                                    {/* What-If Simulator for this specific job */}
+                                    {profile && (
+                                        <div className="space-y-8">
+                                            <div>
+                                                <h3 className="text-2xl font-bold mb-3 flex items-center gap-3">
+                                                    <Zap className="w-7 h-7 text-primary" />
+                                                    Improvement Roadmap
+                                                </h3>
+                                                <p className="text-base text-muted-foreground">Learn specific skills to boost your chances for this role</p>
                                             </div>
+                                            <JobWhatIfSimulator 
+                                                job={job} 
+                                                userProfile={profile}
+                                                currentScore={job.analysis.probability}
+                                            />
                                         </div>
                                     )}
 
                                     {/* Recommendations */}
                                     {job.analysis.actions?.length > 0 && (
-                                        <div className="bg-gradient-to-br from-blue-50/50 to-blue-50/25 dark:from-blue-950/30 dark:to-blue-950/20 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-8 space-y-6">
+                                        <div className="bg-linear-to-br from-blue-50/50 to-blue-50/25 dark:from-blue-950/30 dark:to-blue-950/20 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-8 space-y-6">
                                             <h4 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-3 text-lg">
                                                 <span className="text-2xl">💡</span> Recommendations to Improve
                                             </h4>
@@ -191,14 +300,6 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                     </div>
                                 </div>
                             </ScrollArea>
-
-                            {/* Footer */}
-                            <div className="px-8 py-6 border-t bg-gradient-to-r from-muted/50 to-muted/30 flex justify-end gap-4 shrink-0">
-                                <Button variant="outline" size="lg" onClick={onClose}>Close</Button>
-                                <Button size="lg" className="px-10 font-semibold" onClick={() => window.open(job.applyUrl, '_blank')}>
-                                    Apply Now
-                                </Button>
-                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>

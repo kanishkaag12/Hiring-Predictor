@@ -6,7 +6,6 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { fetchJobs } from "./jobs/job.service";
 import path from "path";
-import { testDatabaseConnection } from "./storage";
 
 import { log } from "./utils/logger";
 
@@ -64,40 +63,15 @@ app.use((req, res, next) => {
   try {
     log("Starting server initialization...", "system");
     
-    // ====================
-    // 1. DATABASE INITIALIZATION
-    // ====================
+    // PostgreSQL connection is initialized in storage.ts via Drizzle ORM
     const DATABASE_URL = process.env.DATABASE_URL;
     if (!DATABASE_URL) {
       throw new Error("DATABASE_URL must be defined in .env");
     }
     log("PostgreSQL configuration loaded", "database");
 
-    // ====================
-    // 2. DATABASE HEALTH CHECK
-    // ====================
-    const dbHealthy = await testDatabaseConnection();
-    if (!dbHealthy) {
-      console.warn("[system] Warning: Database connection failed at startup");
-      console.warn("[system] Server will continue, but authentication will return 503 until database is available");
-      console.warn("[system] Check your DATABASE_URL and ensure the database server is reachable");
-    }
-
-    // ====================
-    // 3. SETUP AUTH (must happen before routes)
-    // ====================
-    log("Setting up authentication...", "system");
-    setupAuth(app);
-
-    // ====================
-    // 4. REGISTER ROUTES
-    // ====================
     log("Registering routes...", "system");
-    
-      // Check resume parser availability
-      const { logParserStatus } = await import("./services/resume-parser.service");
-      logParserStatus();
-
+    setupAuth(app);
     await registerRoutes(httpServer, app);
     log("Routes registered", "system");
 
