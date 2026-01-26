@@ -125,7 +125,7 @@ export default function JobCard({ job, isGuest = false }: JobCardProps) {
       </Button>
 
       {/* Background accent */}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-bl from-primary/5 to-transparent rounded-bl-full -mr-4 -mt-4 pointer-events-none" />
 
 
       <CardHeader className="p-5 pb-2 space-y-2">
@@ -212,7 +212,7 @@ export default function JobCard({ job, isGuest = false }: JobCardProps) {
               <span className="text-[10px] font-medium tracking-tight">Hiring via {job.hiringPlatform}</span>
             </div>
           )}
-          <span className="text-[9px] text-muted-foreground/60 italic leading-none max-w-[120px]">
+          <span className="text-[9px] text-muted-foreground/60 italic leading-none max-w-30">
             Sourced from verified hiring systems
           </span>
         </div>

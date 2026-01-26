@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   Layout,
+  HiringPulseHero,
   MarketDemandStats,
   PeerComparison,
   ActionableSteps,
@@ -279,7 +280,16 @@ export default function Dashboard() {
         {/* Resume Parsing Error Warning suppressed intentionally to avoid UX noise */}
         {/* Intentionally not rendering parsing warnings on dashboard */}
 
-        {/* Section 1: Hero Pulse removed (Readiness score hidden) */}
+        {/* Section 1: Hero Pulse */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <HiringPulseHero
+            score={data.hiringPulse.score}
+            status={data.hiringPulse.status}
+          />
+        </motion.div>
 
         {/* Section: Role Readiness Overview (MULTI-ROLE) */}
         {/* Removed: deterministic readiness overview to streamline AI guidance */}
@@ -531,7 +541,7 @@ export default function Dashboard() {
 
                     {/* Brief explanation */}
                     {role.explanation && (
-                      <p className="text-xs text-muted-foreground leading-relaxed mt-2 min-h-[48px]">
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-2">
                         {role.explanation}
                       </p>
                     )}
@@ -580,7 +590,8 @@ export default function Dashboard() {
           </div>
           <WhatIfSimulator />
         </div>
-        {/* Market Demand & Competition per Role */}
+
+        {/* Section 2: Market Demand & Competition per Role */}
         <section className="space-y-4">
           <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Market Demand & Competition</h3>
           <MarketDemandStats stats={data.marketStats} />

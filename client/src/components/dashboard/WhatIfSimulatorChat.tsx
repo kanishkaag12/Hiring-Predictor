@@ -146,7 +146,7 @@ export function WhatIfSimulatorChat() {
   };
 
   return (
-    <Card className="border-none bg-linear-to-br from-indigo-900/20 to-purple-900/10 shadow-2xl relative overflow-hidden h-full flex flex-col max-h-[75vh] min-h-[560px]">
+    <Card className="border-none bg-linear-to-br from-indigo-900/20 to-purple-900/10 shadow-2xl relative overflow-hidden h-full flex flex-col max-h-[75vh] min-h-140">
       <CardHeader className="border-b border-primary/10">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">

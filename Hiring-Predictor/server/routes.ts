@@ -954,6 +954,66 @@ export async function registerRoutes(
     }
   });
 
+  // 🎯 JOB-SPECIFIC WHAT-IF SIMULATOR (for Analyze My Chances modal)
+  app.post("/api/ai/simulate-for-job", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { jobTitle, jobDescription, jobRequirements, query } = req.body;
+
+      console.log("[Simulator Route] Received query:", query);
+      console.log("[Simulator Route] Query type:", typeof query);
+      console.log("[Simulator Route] Query length:", query ? query.length : 0);
+
+      if (!jobTitle || !jobDescription) {
+        return res.status(400).json({ message: "jobTitle and jobDescription are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+      const interestRoles = user.interestRoles || [];
+
+      // Get resume text if uploaded
+      let resumeText: string | undefined;
+      if (user.resumeUrl) {
+        try {
+          const resumePath = path.join(process.cwd(), "uploads", path.basename(user.resumeUrl));
+          if (fs.existsSync(resumePath)) {
+            resumeText = fs.readFileSync(resumePath, "utf-8").substring(0, 2000);
+          }
+        } catch (err) {
+          console.warn("Could not read resume file:", err);
+        }
+      }
+
+      // Use the job-specific what-if simulator
+      const { JobWhatIfSimulator } = await import("./services/job-what-if-simulator");
+      const simulation = await JobWhatIfSimulator.simulateForJob(
+        jobTitle,
+        jobDescription,
+        jobRequirements || [],
+        query || "",
+        user,
+        skills,
+        projects,
+        experiences,
+        interestRoles,
+        resumeText
+      );
+
+      res.json(simulation);
+    } catch (error) {
+      console.error("Error in Job What-If Simulator:", error);
+      res.status(500).json({
+        message: "Failed to simulate job-specific improvements",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Register analysis routes
   const analysisRouter = await import("./analysis.routes");
   app.use(analysisRouter.default);

@@ -3,7 +3,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { pool, storage, isDatabaseHealthy } from "./storage";
+import { pool, storage } from "./storage";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { User as UserType, insertUserSchema } from "@shared/schema";
@@ -88,24 +88,7 @@ export function setupAuth(app: Express) {
       async (email, password, done) => {
         try {
           console.log("[AUTH] Attempting login for:", email);
-          
-          // First check if database is healthy
-          if (!isDatabaseHealthy()) {
-            console.error("[AUTH] Database is unreachable, cannot authenticate");
-            // Return error instead of false to trigger 500 handler
-            return done(new Error("DATABASE_UNAVAILABLE"));
-          }
-          
-          // Attempt to fetch user
-          let user;
-          try {
-            user = await storage.getUserByEmail(email);
-          } catch (dbError) {
-            console.error("[AUTH] Database error fetching user:", dbError);
-            // Return error to indicate DB issue, not auth failure
-            return done(new Error("DATABASE_ERROR"));
-          }
-          
+          const user = await storage.getUserByEmail(email);
           if (!user) {
             console.log("[AUTH] User not found:", email);
             return done(null, false, { message: "Invalid email or password" });
@@ -133,18 +116,13 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: string, done) => {
     try {
-      if (!isDatabaseHealthy()) {
-        console.warn("[AUTH] Database unreachable during deserializeUser for id:", id);
-        return done(null, false);
-      }
-      
       const user = await storage.getUser(id);
       if (!user) {
         return done(null, false);
       }
       done(null, user);
     } catch (err) {
-      console.warn("[AUTH] Deserialize user error for id:", id, err);
+      console.warn("Deserialize user error for id:", id, err);
       done(null, false);
     }
   });
@@ -152,12 +130,6 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       console.log("[REGISTER] Data received:", { ...req.body, password: "[REDACTED]" });
-      
-      // Check database availability before processing
-      if (!isDatabaseHealthy()) {
-        console.error("[REGISTER] Database is unreachable");
-        return res.status(503).json({ message: "Authentication temporarily unavailable" });
-      }
       
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
@@ -167,30 +139,17 @@ export function setupAuth(app: Express) {
       
       const { email, password } = result.data;
 
-      let existingUser;
-      try {
-        existingUser = await storage.getUserByEmail(email);
-      } catch (dbError) {
-        console.error("[REGISTER] Database error checking existing user:", dbError);
-        return res.status(503).json({ message: "Authentication temporarily unavailable" });
-      }
-      
+      const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
         console.log("[REGISTER] Email already exists:", email);
         return res.status(400).send("User already exists");
       }
 
-      let user;
-      try {
-        const hashedPassword = await hashPassword(password);
-        user = await storage.createUser({
-          ...result.data,
-          password: hashedPassword,
-        });
-      } catch (dbError) {
-        console.error("[REGISTER] Database error creating user:", dbError);
-        return res.status(503).json({ message: "Authentication temporarily unavailable" });
-      }
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser({
+        ...result.data,
+        password: hashedPassword,
+      });
 
       console.log("[REGISTER] User created, id:", user.id);
 
@@ -212,19 +171,10 @@ export function setupAuth(app: Express) {
 
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: UserType, info: any) => {
-      // Handle database errors (return 503)
-      if (err && (err.message === "DATABASE_UNAVAILABLE" || err.message === "DATABASE_ERROR")) {
-        console.error("[LOGIN] Database unavailable:", err.message);
-        return res.status(503).json({ message: "Authentication temporarily unavailable" });
-      }
-      
-      // Handle other errors (pass to middleware)
       if (err) {
         console.error("[LOGIN] Passport error:", err);
         return next(err);
       }
-      
-      // Authentication failed (invalid credentials)
       if (!user) {
         console.log("[LOGIN] Auth failed:", info?.message);
         return res.status(401).json({ message: info?.message || "Authentication failed" });
