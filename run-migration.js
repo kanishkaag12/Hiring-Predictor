@@ -13,7 +13,7 @@ const pool = new Pool({
 async function runMigration() {
   try {
     console.log('Connecting to database...');
-    const sql = readFileSync('./migrations/0003_add_password_reset_tokens.sql', 'utf8');
+    const sql = readFileSync('./migrations/0005_add_profile_image.sql', 'utf8');
     console.log('Running migration...');
     await pool.query(sql);
     console.log('✅ Migration applied successfully!');

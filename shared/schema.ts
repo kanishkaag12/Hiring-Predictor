@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,13 +15,14 @@ export const users = pgTable("users", {
   location: text("location"),
   githubUrl: text("github_url"),
   linkedinUrl: text("linkedin_url"),
+  profileImage: text("profile_image"),
   resumeUrl: text("resume_url"),
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
   resumeScore: integer("resume_score").default(0),
   // Parsed resume data (optional - columns may not exist in older databases yet)
   resumeParsedSkills: jsonb("resume_parsed_skills").$type<string[]>(),
-  resumeEducation: jsonb("resume_education").$type<Array<{degree: string, institution?: string, year?: string}>>(),
+  resumeEducation: jsonb("resume_education").$type<Array<{ degree: string, institution?: string, year?: string }>>(),
   resumeExperienceMonths: integer("resume_experience_months"),
   resumeProjectsCount: integer("resume_projects_count"),
   resumeCompletenessScore: text("resume_completeness_score"),
@@ -38,14 +39,18 @@ export const favourites = pgTable("favourites", {
   jobId: varchar("job_id").notNull(),
   jobType: text("job_type").notNull(), // 'job' | 'internship'
   savedAt: timestamp("saved_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("fav_user_id_idx").on(table.userId),
+}));
 
 export const skills = pgTable("skills", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   name: text("name").notNull(),
   level: text("level").notNull(), // 'Beginner' | 'Intermediate' | 'Advanced'
-});
+}, (table) => ({
+  userIdIdx: index("skills_user_id_idx").on(table.userId),
+}));
 
 export const projects = pgTable("projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -55,7 +60,9 @@ export const projects = pgTable("projects", {
   description: text("description").notNull(),
   githubLink: text("github_link"),
   complexity: text("complexity").notNull(), // 'Low' | 'Medium' | 'High'
-});
+}, (table) => ({
+  userIdIdx: index("projects_user_id_idx").on(table.userId),
+}));
 
 export const experience = pgTable("experience", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -64,7 +71,9 @@ export const experience = pgTable("experience", {
   role: text("role").notNull(),
   duration: text("duration").notNull(),
   type: text("type").notNull(), // 'Job' | 'Internship'
-});
+}, (table) => ({
+  userIdIdx: index("exp_user_id_idx").on(table.userId),
+}));
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -73,7 +82,9 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   expiresAt: timestamp("expires_at").notNull(),
   used: integer("used").default(0), // 0 = unused, 1 = used
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("prt_user_id_idx").on(table.userId),
+}));
 
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,

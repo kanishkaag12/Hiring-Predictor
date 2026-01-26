@@ -44,7 +44,7 @@ export default function Dashboard() {
     queryKey: ["analysis", completeness?.dashboardUnlocked],
     queryFn: async () => {
       if (!completeness?.dashboardUnlocked) return null;
-      const res = await fetch("/api/analysis/status");
+      const res = await fetch("/api/analysis/status", { credentials: "include" });
       return res.json();
     },
     enabled: !!completeness?.dashboardUnlocked,
@@ -54,7 +54,7 @@ export default function Dashboard() {
   // Trigger analysis when profile completes
   useEffect(() => {
     if (completeness?.dashboardUnlocked && !analysisTriggered) {
-      fetch("/api/analysis/trigger", { method: "POST" })
+      fetch("/api/analysis/trigger", { method: "POST", credentials: "include" })
         .then(res => res.json())
         .then(data => {
           console.log("[DASHBOARD] Analysis triggered:", data);

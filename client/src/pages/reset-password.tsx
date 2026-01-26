@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
       }
 
       try {
-        const response = await fetch(`/api/verify-reset-token/${token}`);
+        const response = await fetch(`/api/verify-reset-token/${token}`, { credentials: "include" });
         const result = await response.json();
 
         if (result.valid) {

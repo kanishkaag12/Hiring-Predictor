@@ -6,6 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { fetchJobs } from "./jobs/job.service";
 import path from "path";
+import { testDatabaseConnection, warmConnectionPool } from "./storage";
 
 import { log } from "./utils/logger";
 
@@ -48,8 +49,15 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+
+      // Only log response body in development and for small payloads to avoid performance hit
+      if (process.env.NODE_ENV !== "production" && capturedJsonResponse) {
+        const bodyStr = JSON.stringify(capturedJsonResponse);
+        if (bodyStr.length < 1000) {
+          logLine += ` :: ${bodyStr}`;
+        } else {
+          logLine += ` :: {body truncated for performance}`;
+        }
       }
 
       log(logLine);
@@ -64,6 +72,10 @@ app.use((req, res, next) => {
     log("Starting server initialization...", "system");
     
     // PostgreSQL connection is initialized in storage.ts via Drizzle ORM
+
+    // ====================
+    // 1. DATABASE INITIALIZATION
+    // ====================
     const DATABASE_URL = process.env.DATABASE_URL;
     if (!DATABASE_URL) {
       throw new Error("DATABASE_URL must be defined in .env");
@@ -72,6 +84,34 @@ app.use((req, res, next) => {
 
     log("Registering routes...", "system");
     setupAuth(app);
+    // ====================
+    // 2. DATABASE HEALTH CHECK
+    // ====================
+    const dbHealthy = await testDatabaseConnection();
+    if (!dbHealthy) {
+      console.warn("[system] Warning: Database connection failed at startup");
+      console.warn("[system] Server will continue, but authentication will return 503 until database is available");
+      console.warn("[system] Check your DATABASE_URL and ensure the database server is reachable");
+    } else {
+      // Warm up connection pool to reduce cold start latency
+      await warmConnectionPool(5);
+    }
+
+    // ====================
+    // 3. SETUP AUTH (must happen before routes)
+    // ====================
+    log("Setting up authentication...", "system");
+    setupAuth(app);
+
+    // ====================
+    // 4. REGISTER ROUTES
+    // ====================
+    log("Registering routes...", "system");
+
+    // Check resume parser availability
+    const { logParserStatus } = await import("./services/resume-parser.service");
+    logParserStatus();
+
     await registerRoutes(httpServer, app);
     log("Routes registered", "system");
 
@@ -105,7 +145,7 @@ app.use((req, res, next) => {
     // Other ports are firewalled. Default to 5000 if not specified.
     // this serves both the API and the client.
     // It is the only port that is not firewalled.
-    const port = 3001;
+    const port = parseInt(process.env.PORT || "5000", 10);
 
     console.log("GOOGLE_CLIENT_ID before server start:", process.env.GOOGLE_CLIENT_ID);
 

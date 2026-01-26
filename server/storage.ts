@@ -49,6 +49,52 @@ export interface IStorage {
 // Initialize database connection
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+// ====================
+// DATABASE INITIALIZATION
+// ====================
+
+// Validate DATABASE_URL exists
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("[storage] CRITICAL: DATABASE_URL is not set in environment variables");
+  console.error("[storage] Please ensure DATABASE_URL is defined in .env file");
+  throw new Error("DATABASE_URL must be defined in .env");
+}
+
+// Extract and log host information (without credentials)
+const extractHostInfo = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.hostname}:${parsed.port || "5432"}`;
+  } catch {
+    return "unknown";
+  }
+};
+
+const dbHost = extractHostInfo(DATABASE_URL);
+console.log(`[storage] Database URL configured to: ${dbHost}`);
+
+// Initialize database connection with optimized pool settings for Neon serverless
+export const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: 20,                      // Increased pool size for concurrent requests
+  idleTimeoutMillis: 60000,     // Keep connections alive for 60s to reduce cold starts
+  connectionTimeoutMillis: 5000, // 5s timeout for connection attempts
+  keepAlive: true,              // Enable TCP keepalive to maintain connections
+  keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
+});
+
+// Set up error handlers on the pool
+pool.on("error", (err: Error) => {
+  console.error("[storage] Unexpected error on database connection pool:", err);
+});
+
+pool.on("connect", () => {
+  console.log("[storage] Database connection established");
+});
+
+pool.on("remove", () => {
+  console.warn("[storage] Database connection removed from pool");
 });
 
 const db = drizzle(pool);
@@ -86,6 +132,7 @@ class InMemoryStorage implements IStorage {
       ...insertUser,
       id,
       username: (insertUser as any).username || insertUser.email.split("@")[0],
+      name: insertUser.name ?? null, // Ensure name is explicitly null if not provided by insertUser
       role: null,
       college: null,
       gradYear: null,
@@ -96,6 +143,13 @@ class InMemoryStorage implements IStorage {
       resumeName: null,
       resumeUploadedAt: null,
       resumeScore: 0,
+      resumeParsedSkills: [],
+      resumeEducation: [],
+      resumeExperienceMonths: null,
+      resumeProjectsCount: null,
+      resumeCompletenessScore: "0",
+      resumeParsingError: null,
+      resumeParsingAttemptedAt: null,
       userType: null,
       interestRoles: [],
     };
@@ -498,3 +552,118 @@ const memoryStorage = new InMemoryStorage();
 
 // Use memory storage if database connection fails or explicitely set
 export const storage = useMemoryStorage ? memoryStorage : postgresStorage;
+// ====================
+// DATABASE HEALTH CHECK
+// ====================
+
+let lastConnectionError: Error | null = null;
+let isHealthy = false;
+
+/**
+ * Test database connectivity and log results.
+ * Returns true if database is reachable, false otherwise.
+ * Logs detailed error information for debugging.
+ */
+export async function testDatabaseConnection(): Promise<boolean> {
+  if (useMemoryStorage) {
+    console.log("[storage] Using in-memory storage, skipping database health check");
+    isHealthy = true;
+    return true;
+  }
+
+  try {
+    console.log(`[storage] Testing database connection to ${dbHost}...`);
+    const client = await pool.connect();
+    await client.query("SELECT NOW()");
+    client.release();
+
+    console.log("[storage] ✓ Database connection successful");
+    isHealthy = true;
+    lastConnectionError = null;
+    return true;
+  } catch (err) {
+    isHealthy = false;
+    lastConnectionError = err instanceof Error ? err : new Error(String(err));
+
+    const errorMessage = lastConnectionError.message;
+    const errorCode = (err as any)?.code || "UNKNOWN";
+    const errorDetails = (err as any)?.detail || "";
+
+    console.error("[storage] ✗ Database connection FAILED");
+    console.error(`[storage] Error Code: ${errorCode}`);
+    console.error(`[storage] Error Message: ${errorMessage || "(no message)"}`);
+    if (errorDetails) console.error(`[storage] Details: ${errorDetails}`);
+    console.error(`[storage] Database Host: ${dbHost}`);
+    console.error(`[storage] Connection URL (sanitized): postgresql://***@${dbHost}/neondb`);
+
+    // Provide helpful diagnostic information
+    if (errorMessage.includes("ENOTFOUND") || errorCode === "ENOTFOUND") {
+      console.error(`[storage] ✗ DNS Resolution Failed: Unable to resolve hostname '${dbHost}'`);
+      console.error(`[storage]   → Check your internet connection`);
+      console.error(`[storage]   → Verify DATABASE_URL in .env file`);
+      console.error(`[storage]   → Try: ping ${dbHost}`);
+    } else if (errorMessage.includes("ECONNREFUSED") || errorCode === "ECONNREFUSED") {
+      console.error(`[storage] ✗ Connection Refused: Database may not be running`);
+      console.error(`[storage]   → Verify database server is online`);
+      console.error(`[storage]   → Check firewall settings`);
+    } else if (errorMessage.includes("ETIMEDOUT") || errorCode === "ETIMEDOUT") {
+      console.error(`[storage] ✗ Connection Timeout: Database is not responding`);
+      console.error(`[storage]   → Database may be overloaded or offline`);
+      console.error(`[storage]   → Network may be unreachable or firewalled`);
+      console.error(`[storage]   → Increase timeout or check database status`);
+    } else if (errorMessage.includes("authentication failed") || errorMessage.includes("password")) {
+      console.error(`[storage] ✗ Authentication Failed`);
+      console.error(`[storage]   → Check username/password in DATABASE_URL`);
+      console.error(`[storage]   → Verify credentials are correct`);
+    } else {
+      console.error(`[storage] ✗ Unknown Connection Error`);
+      console.error(`[storage]   → Full error: ${err instanceof Error ? err.stack : String(err)}`);
+    }
+
+    return false;
+  }
+}
+
+/**
+ * Warm up the connection pool by establishing initial connections.
+ * This reduces cold start latency for the first requests.
+ */
+export async function warmConnectionPool(count: number = 3): Promise<void> {
+  if (useMemoryStorage) {
+    console.log("[storage] Skipping connection pool warming (in-memory storage)");
+    return;
+  }
+
+  console.log(`[storage] Warming up connection pool with ${count} connections...`);
+  const clients: any[] = [];
+  
+  try {
+    for (let i = 0; i < count; i++) {
+      const client = await pool.connect();
+      clients.push(client);
+    }
+    console.log(`[storage] ✓ ${count} connections established and ready`);
+    
+    // Release all clients back to pool
+    clients.forEach(client => client.release());
+  } catch (err) {
+    console.error("[storage] Connection pool warming failed:", err);
+    // Release any successful connections
+    clients.forEach(client => client.release());
+  }
+}
+
+/**
+ * Get current database health status.
+ * Returns true if database is healthy, false otherwise.
+ */
+export function isDatabaseHealthy(): boolean {
+  return isHealthy;
+}
+
+/**
+ * Get the last connection error (if any).
+ */
+export function getLastConnectionError(): Error | null {
+  return lastConnectionError;
+}

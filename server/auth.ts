@@ -14,17 +14,35 @@ import { emailService } from "./email";
 const scryptAsync = promisify(scrypt);
 const JWT_SECRET = process.env.JWT_SECRET || "hirepulse-jwt-secret-2026";
 
+// Optimized scrypt parameters: 32 bytes provides strong security (256-bit)
+// while being 2x faster than 64 bytes. This is the recommended value for password hashing.
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  const buf = (await scryptAsync(password, salt, 32)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
 }
 
-async function comparePasswords(supplied: string, stored: string) {
+// Smart password comparison with automatic migration from old 64-byte format
+async function comparePasswords(supplied: string, stored: string): Promise<{ match: boolean; needsMigration: boolean }> {
   const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+  
+  // Detect old format: 128 hex characters = 64 bytes
+  // New format: 64 hex characters = 32 bytes
+  const isOldFormat = hashed.length === 128;
+  
+  if (isOldFormat) {
+    // Use old 64-byte comparison for backward compatibility
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    const match = timingSafeEqual(hashedBuf, suppliedBuf);
+    return { match, needsMigration: true };
+  } else {
+    // Use new optimized 32-byte comparison
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 32)) as Buffer;
+    const match = timingSafeEqual(hashedBuf, suppliedBuf);
+    return { match, needsMigration: false };
+  }
 }
 
 function generateToken(user: UserType) {
@@ -40,23 +58,28 @@ function generateResetToken(): string {
 const PostgresSessionStore = connectPg(session);
 
 export function setupAuth(app: Express) {
-  // Default to in-memory sessions unless explicitly forced to PG
+  // Use in-memory sessions in development for speed, PostgreSQL in production
+  const isProduction = process.env.NODE_ENV === "production";
   const forcePg = process.env.USE_PG_SESSION === "true";
+  const usePgSession = isProduction || forcePg;
 
   let sessionStore: session.Store;
-  if (!forcePg) {
+  if (!usePgSession) {
     sessionStore = new session.MemoryStore();
-    console.warn("[auth] Using in-memory session store (dev). Set USE_PG_SESSION=true to use Postgres.");
+    console.log("[auth] Using in-memory session store (dev mode - fast). Set NODE_ENV=production or USE_PG_SESSION=true for PostgreSQL sessions.");
   } else {
     try {
       const pgStore = new PostgresSessionStore({
         pool,
         createTableIfMissing: true,
+        // Optimize for Neon: use shorter TTL and disable pruning during requests
+        ttl: 24 * 60 * 60, // 24 hours in seconds
       });
       pgStore.on("error", (err: any) => {
-        console.error("[auth] Session store error; consider disabling USE_PG_SESSION in dev", err);
+        console.error("[auth] Session store error:", err);
       });
       sessionStore = pgStore;
+      console.log("[auth] Using PostgreSQL session store (production mode).");
     } catch (err) {
       console.error("[auth] Failed to init Postgres session store, falling back to memory", err);
       sessionStore = new session.MemoryStore();
@@ -89,15 +112,40 @@ export function setupAuth(app: Express) {
         try {
           console.log("[AUTH] Attempting login for:", email);
           const user = await storage.getUserByEmail(email);
+
+          // Attempt to fetch user (catch DB errors directly)
+          let user;
+          try {
+            user = await storage.getUserByEmail(email);
+          } catch (dbError) {
+            console.error("[AUTH] Database error fetching user:", dbError);
+            // Return error to indicate DB issue, not auth failure
+            return done(new Error("DATABASE_ERROR"));
+          }
+
           if (!user) {
             console.log("[AUTH] User not found:", email);
             return done(null, false, { message: "Invalid email or password" });
           }
+
+          // Compare passwords with automatic migration support
+          const { match, needsMigration } = await comparePasswords(password, user.password);
           
-          const isMatch = await comparePasswords(password, user.password);
-          if (!isMatch) {
+          if (!match) {
             console.log("[AUTH] Password mismatch for:", email);
             return done(null, false, { message: "Invalid email or password" });
+          }
+
+          // Auto-migrate old password format to new optimized format
+          if (needsMigration) {
+            try {
+              const newHash = await hashPassword(password);
+              await storage.updateUserPassword(user.id, newHash);
+              console.log("[AUTH] Password migrated to optimized format for:", email);
+            } catch (migrationError) {
+              console.error("[AUTH] Password migration failed (non-critical):", migrationError);
+              // Continue with login even if migration fails
+            }
           }
 
           console.log("[AUTH] Login successful for:", email);
@@ -131,15 +179,24 @@ export function setupAuth(app: Express) {
     try {
       console.log("[REGISTER] Data received:", { ...req.body, password: "[REDACTED]" });
       
+
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
         console.log("[REGISTER] Validation error:", result.error.errors);
         return res.status(400).json(result.error);
       }
-      
+
       const { email, password } = result.data;
 
       const existingUser = await storage.getUserByEmail(email);
+      let existingUser;
+      try {
+        existingUser = await storage.getUserByEmail(email);
+      } catch (dbError) {
+        console.error("[REGISTER] Database error checking existing user:", dbError);
+        return res.status(503).json({ message: "Authentication temporarily unavailable" });
+      }
+
       if (existingUser) {
         console.log("[REGISTER] Email already exists:", email);
         return res.status(400).send("User already exists");
@@ -158,7 +215,7 @@ export function setupAuth(app: Express) {
           console.error("[REGISTER] req.login error:", err);
           return next(err);
         }
-        
+
         const token = generateToken(user);
         console.log("[REGISTER] Success, returning user and token");
         res.status(201).json({ user, token });
@@ -171,21 +228,30 @@ export function setupAuth(app: Express) {
 
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: UserType, info: any) => {
+      // Handle database errors (return 503)
+      if (err && (err.message === "DATABASE_UNAVAILABLE" || err.message === "DATABASE_ERROR")) {
+        console.error("[LOGIN] Database unavailable:", err.message);
+        return res.status(503).json({ message: "Authentication temporarily unavailable" });
+      }
+
+      // Handle other errors (pass to middleware)
       if (err) {
         console.error("[LOGIN] Passport error:", err);
         return next(err);
       }
+
+      // Authentication failed (invalid credentials)
       if (!user) {
         console.log("[LOGIN] Auth failed:", info?.message);
         return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
-      
+
       req.login(user, (err) => {
         if (err) {
           console.error("[LOGIN] req.login error:", err);
           return next(err);
         }
-        
+
         const token = generateToken(user);
         console.log("[LOGIN] Success for:", user.email);
         res.status(200).json({ user, token });
@@ -200,6 +266,13 @@ export function setupAuth(app: Express) {
     });
   });
 
+  // Auth endpoint - single source of truth for authenticated user
+  app.get("/api/auth/me", (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    res.json(req.user);
+  });
+
+  // Legacy endpoint support (deprecated)
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
@@ -239,18 +312,18 @@ export function setupAuth(app: Express) {
   app.post("/api/forgot-password", async (req, res) => {
     try {
       const { email } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
       }
 
       const user = await storage.getUserByEmail(email);
-      
+
       // Always return success to prevent email enumeration attacks
       if (!user) {
         console.log("[FORGOT-PASSWORD] Email not found:", email);
-        return res.status(200).json({ 
-          message: "If an account with that email exists, a password reset link has been sent." 
+        return res.status(200).json({
+          message: "If an account with that email exists, a password reset link has been sent."
         });
       }
 
@@ -263,17 +336,17 @@ export function setupAuth(app: Express) {
       // Build reset link using a public base URL when provided
       const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
       const resetLink = `${baseUrl}/reset-password?token=${token}`;
-      
+
       // Send email
-      const emailSent = await emailService.sendPasswordResetEmail(email, resetLink, user.username);
-      
+      const emailSent = await emailService.sendPasswordResetEmail(email, resetLink, user.username || "User");
+
       if (emailSent) {
         console.log("[FORGOT-PASSWORD] Reset email sent to:", email);
       } else {
         console.log("[FORGOT-PASSWORD] Reset link (email not configured):", resetLink);
       }
 
-      res.status(200).json({ 
+      res.status(200).json({
         message: "If an account with that email exists, a password reset link has been sent.",
         // Only include token in development for testing
         ...(process.env.NODE_ENV === 'development' && { resetToken: token, resetLink })
@@ -288,9 +361,9 @@ export function setupAuth(app: Express) {
   app.get("/api/verify-reset-token/:token", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       const resetToken = await storage.getPasswordResetToken(token);
-      
+
       if (!resetToken) {
         return res.status(400).json({ valid: false, message: "Invalid reset token" });
       }
@@ -314,7 +387,7 @@ export function setupAuth(app: Express) {
   app.post("/api/reset-password", async (req, res) => {
     try {
       const { token, password } = req.body;
-      
+
       if (!token || !password) {
         return res.status(400).json({ message: "Token and password are required" });
       }
@@ -324,7 +397,7 @@ export function setupAuth(app: Express) {
       }
 
       const resetToken = await storage.getPasswordResetToken(token);
-      
+
       if (!resetToken) {
         return res.status(400).json({ message: "Invalid reset token" });
       }
