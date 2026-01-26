@@ -1,6 +1,7 @@
 import { CompanyHiringPatterns, CandidateComparison } from "./job.types";
-import { PredictionModel } from "../ml/prediction-model";
-import { UserProfile } from "../ml/feature-engineering";
+import { User, Skill, Project, Experience } from "@shared/schema";
+import { Job } from "./job.types";
+import { ProbabilityEngine } from "../services/probability-engine";
 
 export type ApplySignal = "GOOD" | "SOON" | "WAIT";
 
@@ -8,17 +9,16 @@ export interface JobAnalysisResult {
   probability: number;
   applySignal: ApplySignal;
   reasoning: string;
-  factors?: Record<string, string>;
+  reasons: string[];
+  strengths: string[];
+  neutrals?: string[];
+  weaknesses?: string[];
+  actions?: string[];
+  confidenceBand?: "Low" | "Medium" | "High";
+  factors?: Record<string, any>;
   hiringPatterns?: CompanyHiringPatterns;
   candidateComparison?: CandidateComparison;
 }
-
-// Mock User Profile for ML Model
-const MOCK_USER_PROFILE: UserProfile = {
-  skills: ["React", "TypeScript", "Node.js", "JavaScript", "Tailwind", "PostgreSQL"],
-  experienceLevel: "Mid",
-  projects: []
-};
 
 interface AnalyzeJobInput {
   id: string;
@@ -29,27 +29,96 @@ interface AnalyzeJobInput {
   roleLevel?: "Intern" | "Junior" | "Mid" | "Senior";
   postedAt?: string;
   skills?: string[];
+  isInternship?: boolean;
+  employmentType?: "Internship" | "Full-time" | "Contract";
+  experienceLevel?: string;
 }
 
-export function analyzeJob(input: AnalyzeJobInput): JobAnalysisResult {
-  // 1. Prepare Data for ML
-  const jobForML = {
-    postedAt: input.postedAt || new Date().toISOString(), // Fallback if missing
+/**
+ * Enhanced job analysis with real user data
+ * This is called from routes with actual user context
+ */
+export function analyzeJob(
+  input: AnalyzeJobInput,
+  user?: User,
+  userSkills?: Skill[],
+  userProjects?: Project[],
+  userExperiences?: Experience[]
+): JobAnalysisResult {
+  // If no user data provided, return neutral/placeholder response
+  if (!user || !userSkills || !userProjects || !userExperiences) {
+    return createPlaceholderAnalysis(input);
+  }
+
+  // Convert to Job interface for probability engine
+  const job: Job = {
+    id: input.id,
+    title: input.title,
+    company: input.company,
+    location: "Unknown",
+    employmentType: (input.employmentType || "Full-time") as "Internship" | "Full-time" | "Contract",
+    experienceLevel: (input.roleLevel || input.experienceLevel || "Junior") as any,
     skills: input.skills || [],
-    experienceLevel: input.roleLevel,
-    applicants: input.applicants
+    source: "analysis",
+    postedAt: input.postedAt || new Date().toISOString(),
+    applyUrl: "",
+    isInternship: input.isInternship || input.employmentType === "Internship"
   };
 
-  // 2. Run Prediction with ML Model
-  const prediction = PredictionModel.predict(jobForML, MOCK_USER_PROFILE);
+  // Attach analysis-only fields
+  (job as any).daysSincePosted = input.daysSincePosted;
+  (job as any).applicants = input.applicants;
+
+  // Calculate real probability using user data
+  const probResult = ProbabilityEngine.calculateProbability(
+    user,
+    userSkills,
+    userProjects,
+    userExperiences,
+    job
+  );
+
+  // Convert to apply signal
+  const applySignal = probResult.probability >= 70 ? "GOOD" : probResult.probability >= 45 ? "SOON" : "WAIT";
 
   return {
-    probability: prediction.probability,
-    applySignal: prediction.applySignal,
-    reasoning: prediction.reasoning,
-    factors: prediction.factors, // Pass factors to UI
-    hiringPatterns: getCompanyHiringPatterns(input.company, input.title),
-    candidateComparison: getCandidateComparison(input.id, input.roleLevel || "Mid", input.skills || []),
+    probability: probResult.probability,
+    applySignal,
+    reasoning: probResult.explanation,
+    reasons: [...probResult.strengths, ...(probResult.neutrals || [])].slice(0, 4),
+    strengths: probResult.strengths,
+    neutrals: probResult.neutrals,
+    weaknesses: probResult.weaknesses,
+    actions: probResult.actions,
+    confidenceBand: probResult.confidenceBand,
+    factors: {
+      profileMatch: Math.round(probResult.pillars.profileMatch * 100),
+      skillFit: Math.round(probResult.pillars.skillFit * 100),
+      marketContext: Math.round(probResult.pillars.marketContext * 100),
+      companySignals: Math.round(probResult.pillars.companySignals * 100),
+      userBehavior: Math.round(probResult.pillars.userBehavior * 100),
+    },
+  };
+}
+
+/**
+ * Placeholder analysis when user data is not available
+ */
+function createPlaceholderAnalysis(input: AnalyzeJobInput): JobAnalysisResult {
+  return {
+    probability: 50,
+    applySignal: "SOON",
+    reasoning: "Sign in to get a personalized analysis of your chances for this role.",
+    reasons: ["Profile analysis requires authentication"],
+    strengths: [],
+    weaknesses: [],
+    factors: {
+      profileMatch: 0,
+      skillFit: 0,
+      marketContext: 0,
+      companySignals: 0,
+      userBehavior: 0,
+    }
   };
 }
 
@@ -112,26 +181,34 @@ function getCompanyHiringPatterns(company: string, title: string): CompanyHiring
 /**
  * Generate Candidate Comparison based on Job ID
  */
-function getCandidateComparison(jobId: string, jobLevel: string, jobSkills: string[]): CandidateComparison {
+function getCandidateComparison(
+  jobId: string,
+  jobLevel: string,
+  jobSkills: string[],
+  user?: User,
+  userSkills?: Skill[]
+): CandidateComparison {
   const seed = getHash(jobId);
-  const userLevel = MOCK_USER_PROFILE.experienceLevel;
 
-  // 1. Calculate Experience Gap Score
+  // Use real user level if available, otherwise default to Mid
   const levels = ["Student", "Intern", "Fresher", "Junior", "Mid", "Senior"];
-  const userIdx = levels.indexOf(userLevel) > -1 ? levels.indexOf(userLevel) : 2; // Default Mid
+  const userLevelStr = user?.userType || "Mid";
+  const userIdx = levels.indexOf(userLevelStr) > -1 ? levels.indexOf(userLevelStr) : 2;
   const jobIdx = levels.findIndex(l => jobLevel.toLowerCase().includes(l.toLowerCase()));
   const actualJobIdx = jobIdx > -1 ? jobIdx : 2; // Default Mid
 
   // +ve means User is Overqualified, -ve means Underqualified
   const levelDiff = userIdx - actualJobIdx;
 
-  // 2. Calculate Skill Overlap Score (Simple Set Match)
-  const userSkillsSet = new Set(MOCK_USER_PROFILE.skills.map(s => s.toLowerCase()));
+  // Calculate skill overlap using real user skills when available
+  const userSkillsSet = new Set(
+    (userSkills || []).map(s => s.name.toLowerCase())
+  );
   let matchCount = 0;
   jobSkills.forEach(s => {
     if (userSkillsSet.has(s.toLowerCase())) matchCount++;
   });
-  const skillRatio = jobSkills.length > 0 ? matchCount / jobSkills.length : 0.5;
+  const skillRatio = jobSkills.length > 0 ? matchCount / jobSkills.length : 0.4;
 
   // 3. Determine Percentile Rank (Inverted: #1 is top, #100 is bottom)
   // Start at average (50th percentile)

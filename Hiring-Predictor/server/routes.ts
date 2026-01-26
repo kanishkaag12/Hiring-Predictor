@@ -2,7 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
-import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
+import { fetchJobs, aggregateMarketStats, UserContext } from "./jobs/job.service";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
@@ -173,7 +173,8 @@ export async function registerRoutes(
         companySize: req.query.companySize as string,
         workType: req.query.workType as any
       };
-      const jobs = await fetchJobs(filters);
+      const userCtx = await buildUserContext(req);
+      const jobs = await fetchJobs(filters, userCtx || undefined);
       res.json(jobs);
     } catch (error) {
       console.error("Error finding jobs:", error);
@@ -184,7 +185,8 @@ export async function registerRoutes(
   // ✅ SINGLE JOB
   app.get("/api/jobs/:id", async (req, res) => {
     const { id } = req.params;
-    const jobs = await fetchJobs();
+    const userCtx = await buildUserContext(req);
+    const jobs = await fetchJobs({}, userCtx || undefined);
     const job = jobs.find(j => j.id === id);
 
     if (!job) {
@@ -404,6 +406,29 @@ export async function registerRoutes(
       };
 
       const updated = await storage.updateUser(userId, updateData);
+
+      // 🔄 SYNC PARSED SKILLS TO SKILLS TABLE
+      // This ensures the probability engine uses the latest resume skills
+      if (parsedResume.skills && parsedResume.skills.length > 0) {
+        // Get existing skills to avoid duplicates
+        const existingSkills = await storage.getSkills(userId);
+        const existingSkillNames = new Set(existingSkills.map(s => s.name.toLowerCase()));
+        
+        // Add new skills from resume that don't already exist
+        const newSkillsToAdd = parsedResume.skills.filter(
+          skillName => !existingSkillNames.has(skillName.toLowerCase())
+        );
+        
+        for (const skillName of newSkillsToAdd) {
+          await storage.addSkill({
+            userId: userId,
+            name: skillName,
+            level: "Intermediate" // Beginner | Intermediate | Advanced
+          });
+        }
+        
+        console.log(`✅ Synced ${newSkillsToAdd.length} new skills from resume to skills table`);
+      }
 
       // Calculate role skill match scores from parsed skills
       const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills);
@@ -929,9 +954,95 @@ export async function registerRoutes(
     }
   });
 
+  // 🎯 JOB-SPECIFIC WHAT-IF SIMULATOR (for Analyze My Chances modal)
+  app.post("/api/ai/simulate-for-job", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { jobTitle, jobDescription, jobRequirements, query } = req.body;
+
+      console.log("[Simulator Route] Received query:", query);
+      console.log("[Simulator Route] Query type:", typeof query);
+      console.log("[Simulator Route] Query length:", query ? query.length : 0);
+
+      if (!jobTitle || !jobDescription) {
+        return res.status(400).json({ message: "jobTitle and jobDescription are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+      const interestRoles = user.interestRoles || [];
+
+      // Get resume text if uploaded
+      let resumeText: string | undefined;
+      if (user.resumeUrl) {
+        try {
+          const resumePath = path.join(process.cwd(), "uploads", path.basename(user.resumeUrl));
+          if (fs.existsSync(resumePath)) {
+            resumeText = fs.readFileSync(resumePath, "utf-8").substring(0, 2000);
+          }
+        } catch (err) {
+          console.warn("Could not read resume file:", err);
+        }
+      }
+
+      // Use the job-specific what-if simulator
+      const { JobWhatIfSimulator } = await import("./services/job-what-if-simulator");
+      const simulation = await JobWhatIfSimulator.simulateForJob(
+        jobTitle,
+        jobDescription,
+        jobRequirements || [],
+        query || "",
+        user,
+        skills,
+        projects,
+        experiences,
+        interestRoles,
+        resumeText
+      );
+
+      res.json(simulation);
+    } catch (error) {
+      console.error("Error in Job What-If Simulator:", error);
+      res.status(500).json({
+        message: "Failed to simulate job-specific improvements",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Register analysis routes
   const analysisRouter = await import("./analysis.routes");
   app.use(analysisRouter.default);
 
   return httpServer;
+}
+
+/**
+ * Build user context (user + skills + projects + experiences)
+ * Returns null if unauthenticated
+ */
+async function buildUserContext(req: Request): Promise<UserContext | null> {
+  const authUser = req.user as User | undefined;
+  if (!authUser) return null;
+
+  const userId = authUser.id;
+  const [user, skills, projects, experiences] = await Promise.all([
+    storage.getUser(userId),
+    storage.getSkills(userId),
+    storage.getProjects(userId),
+    storage.getExperiences(userId)
+  ]);
+
+  if (!user) return null;
+
+  return {
+    user,
+    skills,
+    projects,
+    experiences
+  };
 }

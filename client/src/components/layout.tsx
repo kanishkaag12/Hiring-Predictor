@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, Search, Settings, Home, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -6,10 +6,66 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
+interface UserStats {
+  profileScore: number;
+  jobsApplied: number;
+  interviews: number;
+}
+
+interface Activity {
+  type: string;
+  title: string;
+  description: string;
+  timestamp: Date;
+  icon: string;
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+
+  // Fetch stats and activities when user is authenticated
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true);
+        const response = await fetch("/api/dashboard/stats");
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    const fetchActivities = async () => {
+      try {
+        setActivitiesLoading(true);
+        const response = await fetch("/api/dashboard/activity");
+        if (response.ok) {
+          const data = await response.json();
+          setActivities(data);
+        }
+      } catch (error) {
+        console.error("Error fetching activities:", error);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+
+    fetchStats();
+    fetchActivities();
+  }, [user?.id]);
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -63,44 +119,45 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Profile Score</span>
-              <span className="font-medium text-foreground">85%</span>
+              <span className="font-medium text-foreground">
+                {statsLoading ? "..." : `${stats?.profileScore || 0}%`}
+              </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Jobs Applied</span>
-              <span className="font-medium text-foreground">12</span>
+              <span className="font-medium text-foreground">
+                {statsLoading ? "..." : stats?.jobsApplied || 0}
+              </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Interviews</span>
-              <span className="font-medium text-foreground">3</span>
+              <span className="font-medium text-foreground">
+                {statsLoading ? "..." : stats?.interviews || 0}
+              </span>
             </div>
           </div>
         </div>
-
         {/* Recent Activity Section */}
         <div className="px-4 py-3 mx-4 mb-4 bg-accent/20 rounded-lg border border-border/30">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Recent Activity</h3>
           <div className="space-y-2">
-            <div className="flex items-start gap-2 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0"></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-muted-foreground text-xs">Applied to Senior DevOps Engineer</p>
-                <p className="text-xs text-muted-foreground">2 hours ago</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-muted-foreground text-xs">Profile viewed by 3 companies</p>
-                <p className="text-xs text-muted-foreground">1 day ago</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 flex-shrink-0"></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-muted-foreground text-xs">Resume updated</p>
-                <p className="text-xs text-muted-foreground">3 days ago</p>
-              </div>
-            </div>
+            {activitiesLoading ? (
+              <div className="text-xs text-muted-foreground text-center py-2">Loading...</div>
+            ) : activities.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-2">No activity yet</div>
+            ) : (
+              activities.map((activity, idx) => (
+                <div key={idx} className="flex items-start gap-2 text-sm">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-muted-foreground text-xs">{activity.icon} {activity.title}</p>
+                    {activity.description && (
+                      <p className="text-xs text-muted-foreground truncate">{activity.description}</p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
