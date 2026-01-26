@@ -143,6 +143,25 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+// Configure multer for photo uploads
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: uploadDir,
+    filename: (_req: any, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, "photo-" + uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  fileFilter: (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
 
 import { log } from "./utils/logger";
 
@@ -370,6 +389,35 @@ export async function registerRoutes(
     const { url } = req.body;
     const updated = await storage.updateUser(userId, { githubUrl: url });
     res.json(updated);
+  });
+
+  app.post("/api/profile/photo", ensureAuthenticated, photoUpload.single("photo"), async (req, res) => {
+    const userId = (req.user as User).id;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    try {
+      const photoUrl = `/uploads/${req.file.filename}`;
+      const updated = await storage.updateUser(userId, { profileImage: photoUrl });
+      res.json({ profileImage: photoUrl, user: updated });
+    } catch (error) {
+      console.error("Photo upload error:", error);
+      res.status(500).json({ message: "Failed to save profile photo" });
+    }
+  });
+
+  app.delete("/api/profile/photo", ensureAuthenticated, async (req, res) => {
+    const userId = (req.user as User).id;
+
+    try {
+      const updated = await storage.updateUser(userId, { profileImage: null });
+      res.json({ message: "Photo removed successfully", user: updated });
+    } catch (error) {
+      console.error("Photo removal error:", error);
+      res.status(500).json({ message: "Failed to remove profile photo" });
+    }
   });
 
   app.post("/api/profile/resume", ensureAuthenticated, upload.single("resume"), async (req, res) => {

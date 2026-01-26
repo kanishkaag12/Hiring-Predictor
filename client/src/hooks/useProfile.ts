@@ -156,6 +156,46 @@ export function useProfile() {
         },
     });
 
+    const uploadProfilePhoto = useMutation({
+        mutationFn: async (file: File) => {
+            const formData = new FormData();
+            formData.append("photo", file);
+            const res = await fetch("/api/profile/photo", {
+                method: "POST",
+                body: formData,
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || "Failed to upload photo");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+        },
+    });
+
+    const removeProfilePhoto = useMutation({
+        mutationFn: async () => {
+            const res = await fetch("/api/profile/photo", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({ message: "Failed to remove photo" }));
+                throw new Error(error.message || "Failed to remove photo");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/profile/completeness"] });
+        },
+    });
+
     return {
         profile,
         isLoading,
@@ -170,6 +210,8 @@ export function useProfile() {
         updateGithub,
         uploadResume,
         updateInterestRoles,
+        uploadProfilePhoto,
+        removeProfilePhoto,
     };
 }
 
