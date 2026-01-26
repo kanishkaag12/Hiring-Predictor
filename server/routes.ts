@@ -36,14 +36,14 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
     else if (fileSizeKB > 1000) sizeScore = 70; // Too large
     else if (fileSizeKB < 100) sizeScore = 80;
     else if (fileSizeKB < 300) sizeScore = 95;
-    
+
     // Heuristic 2: Convert to text and check for key resume elements
     // Try to extract text from buffer
     let textContent = buffer.toString('utf-8', 0, Math.min(buffer.length, 50000)).toLowerCase();
-    
+
     // Remove non-ASCII and special chars for analysis
     textContent = textContent.replace(/[^a-z0-9\s]/gi, ' ');
-    
+
     let contentScore = 50;
     const keywordScores: Record<string, number> = {
       // Experience indicators
@@ -54,7 +54,7 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
       'developed': 8,
       'managed': 8,
       'led': 8,
-      
+
       // Education indicators
       'education': 15,
       'degree': 10,
@@ -62,7 +62,7 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
       'bachelor': 8,
       'master': 10,
       'gpa': 5,
-      
+
       // Technical skills
       'skills': 15,
       'programming': 10,
@@ -71,7 +71,7 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
       'java': 5,
       'react': 5,
       'nodejs': 5,
-      
+
       // Achievement indicators
       'achievement': 10,
       'award': 10,
@@ -79,7 +79,7 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
       'contributed': 8,
       'leadership': 8,
       'impact': 8,
-      
+
       // Format quality
       'contact': 10,
       'email': 8,
@@ -87,10 +87,10 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
       'linkedin': 5,
       'github': 5,
     };
-    
+
     let keywordScore = 0;
     let foundKeywords = 0;
-    
+
     for (const [keyword, score] of Object.entries(keywordScores)) {
       const regex = new RegExp(`\\b${keyword}\\b`, 'g');
       const matches = (textContent.match(regex) || []).length;
@@ -99,11 +99,11 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
         foundKeywords++;
       }
     }
-    
+
     // Normalize keyword score to 0-50 range
     const maxPossibleScore = Object.values(keywordScores).reduce((a, b) => a + b, 0);
     contentScore = Math.round((keywordScore / maxPossibleScore) * 50);
-    
+
     // Heuristic 3: Bonus for user type (students should have projects/education, professionals should have experience)
     let typeBonus = 0;
     if (userType === "Student" || userType === "Fresher") {
@@ -111,13 +111,13 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
     } else if (userType === "Working Professional") {
       if (textContent.includes('experience') || textContent.includes('employed')) typeBonus = 10;
     }
-    
+
     // Final score: Average of components
     const finalScore = Math.round((sizeScore * 0.25 + contentScore * 0.65 + (typeBonus * 0.1)));
-    
+
     // Clamp between 60-95 (all resumes get at least some credit)
     return Math.max(60, Math.min(95, finalScore));
-    
+
   } catch (error) {
     console.error("Resume evaluation error:", error);
     // On any error, use safe default score
@@ -199,14 +199,21 @@ export async function registerRoutes(
   // ✅ SINGLE JOB
   app.get("/api/jobs/:id", async (req, res) => {
     const { id } = req.params;
-    const jobs = await fetchJobs();
-    const job = jobs.find(j => j.id === id);
+    try {
+      // Improved: Use the job service to fetch only the specific job if possible
+      // For now, fetchJobs is the only entry point, but we should minimize impact
+      const jobs = await fetchJobs();
+      const job = jobs.find(j => j.id === id);
 
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error(`Error fetching job ${id}:`, error);
+      res.status(500).json({ error: "Failed to fetch job details" });
     }
-
-    res.json(job);
   });
 
   // ⭐ FAVOURITES
@@ -236,10 +243,17 @@ export async function registerRoutes(
   // 👤 PROFILE
   app.get("/api/profile", ensureAuthenticated, async (req, res) => {
     const userId = (req.user as User).id;
-    const user = await storage.getUser(userId);
-    const skills = await storage.getSkills(userId);
-    const projects = await storage.getProjects(userId);
-    const experiences = await storage.getExperiences(userId);
+
+    // Parallelize database calls for faster profile load
+    const [user, skills, projects, experiences] = await Promise.all([
+      storage.getUser(userId),
+      storage.getSkills(userId),
+      storage.getProjects(userId),
+      storage.getExperiences(userId)
+    ]);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
     res.json({ ...user, skills, projects, experiences });
   });
 
@@ -374,7 +388,7 @@ export async function registerRoutes(
 
       // Read the uploaded file from disk with absolute path
       const savedFilePath = path.resolve(uploadDir, req.file.filename);
-      
+
       if (devMode) {
         console.log(`[Resume Upload] Processing file: ${req.file.originalname}`);
         console.log(`[Resume Upload] Saved path: ${savedFilePath}`);
@@ -414,19 +428,19 @@ export async function registerRoutes(
         projects_count: 0,
         resume_completeness_score: 0,
       };
-      
+
       let parsingStatus = "SUCCESS";
       let parsingError: string | null = null;
       let parsingDuration = 0;
 
       try {
         const parseStartTime = Date.now();
-        
+
         parsedResume = await parseResumeFunction(
           fileBuffer,
           req.file.originalname
         );
-        
+
         parsingDuration = Date.now() - parseStartTime;
 
         // Validate parsing results
@@ -455,9 +469,9 @@ export async function registerRoutes(
       } catch (parseError) {
         parsingStatus = "FAILED";
         parsingError = parseError instanceof Error ? parseError.message : String(parseError);
-        
+
         console.error(`[Resume Upload] Parsing failed: ${parsingError}`);
-        
+
         // Return empty but valid defaults (graceful degradation)
         parsedResume = {
           skills: [],
@@ -472,7 +486,7 @@ export async function registerRoutes(
       // 4. UPDATE USER WITH PARSED DATA & STATUS
       // ====================
       const resumeUploadedAt = new Date();
-      
+
       const updateData: Partial<User> = {
         resumeUrl: `/uploads/${req.file.filename}`,
         resumeName: req.file.originalname,
@@ -554,8 +568,8 @@ export async function registerRoutes(
       const projects = await storage.getProjects(userId);
       const experiences = await storage.getExperiences(userId);
 
-      const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills) 
-        ? user.resumeParsedSkills 
+      const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills)
+        ? user.resumeParsedSkills
         : [];
 
       // Combine parsed resume skills with manually added skills
@@ -578,9 +592,9 @@ export async function registerRoutes(
         skills: allSkills,
         education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
         experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
-        projects: projects.map(p => ({ 
-          name: p.title || '', 
-          description: p.description || '' 
+        projects: projects.map(p => ({
+          name: p.title || '',
+          description: p.description || ''
         })),
         experiences: experiences.map(e => ({
           title: e.role || '',
@@ -645,24 +659,27 @@ export async function registerRoutes(
   // 📊 DASHBOARD DATA
   app.get("/api/dashboard", ensureAuthenticated, async (req, res) => {
     const userId = (req.user as User).id;
-    const user = await storage.getUser(userId);
-    const jobs = await fetchJobs();
+
+    // Parallelize all data fetching for the dashboard
+    const [user, jobs, skills, projects, experiences] = await Promise.all([
+      storage.getUser(userId),
+      fetchJobs(),
+      storage.getSkills(userId),
+      storage.getProjects(userId),
+      storage.getExperiences(userId)
+    ]);
 
     if (!user) return res.status(404).json({ message: "User not found" });
-
-    const skills = await storage.getSkills(userId);
-    const projects = await storage.getProjects(userId);
-    const experiences = await storage.getExperiences(userId);
 
     const rolesToCalculate = (user.interestRoles && user.interestRoles.length >= 2)
       ? user.interestRoles
       : [];
 
     // Calculate skill-to-role match scores from parsed resume skills
-    const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills) 
-      ? user.resumeParsedSkills 
+    const resumeSkills: string[] = Array.isArray(user.resumeParsedSkills)
+      ? user.resumeParsedSkills
       : [];
-    
+
     // Track if resume parsing failed
     const resumeParsingError = user.resumeParsingError || null;
     const resumeParsingStatus = {
@@ -671,7 +688,7 @@ export async function registerRoutes(
       hasError: !!resumeParsingError,
       error: resumeParsingError,
     };
-    
+
     const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(resumeSkills);
 
     // ML-based role predictions (probabilistic, background-agnostic)
@@ -683,9 +700,9 @@ export async function registerRoutes(
           skills: resumeSkills,
           education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
           experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
-          projects: projects.map(p => ({ 
-            name: p.title || '', 
-            description: p.description || '' 
+          projects: projects.map(p => ({
+            name: p.title || '',
+            description: p.description || ''
           })),
           experiences: experiences.map(e => ({
             title: e.role || '',
@@ -693,7 +710,7 @@ export async function registerRoutes(
           })),
           // User context for calibration
           userLevel: (user.userType as any) || 'fresher',
-          resumeQualityScore: typeof user.resumeCompletenessScore === 'number' 
+          resumeQualityScore: typeof user.resumeCompletenessScore === 'number'
             ? user.resumeCompletenessScore / 100  // Convert 0-100 to 0-1
             : 0.5,
           // Pass parsed resume data for feature engineering
@@ -783,16 +800,16 @@ export async function registerRoutes(
               skills: resumeSkills,
               education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
               experienceMonths: typeof user.resumeExperienceMonths === 'number' ? user.resumeExperienceMonths : undefined,
-              projects: projects.map(p => ({ 
-                name: p.title || '', 
-                description: p.description || '' 
+              projects: projects.map(p => ({
+                name: p.title || '',
+                description: p.description || ''
               })),
               experiences: experiences.map(e => ({
                 title: e.role || '',
                 company: e.company || ''
               })),
               userLevel: (user.userType as any) || 'fresher',
-              resumeQualityScore: typeof user.resumeCompletenessScore === 'number' 
+              resumeQualityScore: typeof user.resumeCompletenessScore === 'number'
                 ? user.resumeCompletenessScore / 100
                 : 0.5,
               projectsCount: projects.length,
@@ -864,7 +881,7 @@ export async function registerRoutes(
         const stats = aggregateMarketStats(jobs);
         return userInterestRoles.map(userRole => {
           const normalized = userRole.toLowerCase().trim();
-          return stats.find(stat => 
+          return stats.find(stat =>
             stat.roleCategory.toLowerCase() === normalized
           ) || {
             roleCategory: userRole,
@@ -1043,7 +1060,7 @@ export async function registerRoutes(
   // ============================================================================
   // DEVELOPMENT/TEST ENDPOINTS (Prompt 5 Verification)
   // ============================================================================
-  
+
   /**
    * TEST ENDPOINT: Verify feature engineering function (Prompt 5)
    * 
@@ -1162,10 +1179,10 @@ export async function registerRoutes(
    */
   app.get("/api/ml/shortlist-test/:role_category", async (req, res) => {
     const roleCategory = req.params.role_category;
-    
+
     // Use a test user ID (hardcoded for testing)
     const testUserId = "49205cf8-cbc9-4399-b547-b10ac6df280d";
-    
+
     const shortlistModelPath = process.env.SHORTLIST_MODEL_PATH || path.join(process.cwd(), "models", "shortlist_model.pkl");
 
     try {
@@ -1408,10 +1425,10 @@ export async function registerRoutes(
           const confidence_level = prob >= 0.66 ? "High" : prob >= 0.33 ? "Medium" : "Low";
           const contributions = Array.isArray(result.contributions)
             ? result.contributions.slice(0, 5).map((c: any) => ({
-                feature: c.feature,
-                impact: c.impact,
-                description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
-              }))
+              feature: c.feature,
+              impact: c.impact,
+              description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
+            }))
             : [];
 
           // Success response
@@ -1484,7 +1501,7 @@ export async function registerRoutes(
     try {
       // Fetch user (for test endpoint, use a sample user or create mock data)
       let user = await storage.getUser(userId);
-      
+
       // If test user doesn't exist, create mock data
       if (!user) {
         user = {
@@ -1500,11 +1517,11 @@ export async function registerRoutes(
 
       // Build parsed resume snapshot
       const parsedResume: any = {
-        skills: user.resumeParsedSkills || [],
-        education: user.resumeEducation || [],
-        experience_months: user.resumeExperienceMonths || 0,
-        projects_count: user.resumeProjectsCount || 0,
-        resume_completeness_score: user.resumeCompletenessScore || 0,
+        skills: user!.resumeParsedSkills || [],
+        education: user!.resumeEducation || [],
+        experience_months: user!.resumeExperienceMonths || 0,
+        projects_count: user!.resumeProjectsCount || 0,
+        resume_completeness_score: user!.resumeCompletenessScore || 0,
       };
 
       // Role skill matches -> numeric scores
@@ -1569,23 +1586,23 @@ export async function registerRoutes(
       // Find the correct Python executable from .venv
       const projectRoot = process.cwd(); // Outer root where .venv is located
       const pythonExe = findPythonExecutable(projectRoot);
-      
+
       console.log(`[ML Shortlist] Spawning Python: ${pythonExe}`);
       console.log(`[ML Shortlist] Script: ${pythonScript}`);
       console.log(`[ML Shortlist] Model: ${shortlistModelPath}`);
       console.log(`[ML Shortlist] Payload: ${payload}`);
-      
+
       let responseHandled = false;
       const timeoutMs = 15000; // 15 second timeout
-      
+
       const py = spawn(pythonExe, [pythonScript, shortlistModelPath], {
         cwd: process.cwd(),
         env: process.env
       });
-      
+
       let stdout = "";
       let stderr = "";
-      
+
       const timeout = setTimeout(() => {
         if (!responseHandled) {
           responseHandled = true;
@@ -1597,17 +1614,17 @@ export async function registerRoutes(
           });
         }
       }, timeoutMs);
-      
+
       py.stdout.on("data", (d) => {
         stdout += d.toString();
         console.log(`[ML Shortlist] Python stdout: ${d.toString()}`);
       });
-      
+
       py.stderr.on("data", (d) => {
         stderr += d.toString();
         console.error(`[ML Shortlist] Python stderr: ${d.toString()}`);
       });
-      
+
       py.on("error", (err) => {
         clearTimeout(timeout);
         if (!responseHandled) {
@@ -1619,7 +1636,7 @@ export async function registerRoutes(
           });
         }
       });
-      
+
       py.stdin.write(payload);
       py.stdin.end();
 
@@ -1627,11 +1644,11 @@ export async function registerRoutes(
         clearTimeout(timeout);
         if (responseHandled) return;
         responseHandled = true;
-        
+
         console.log(`[ML Shortlist] Python process closed with code ${code}`);
         console.log(`[ML Shortlist] stdout: ${stdout}`);
         console.log(`[ML Shortlist] stderr: ${stderr}`);
-        
+
         if (code !== 0) {
           return res.status(500).json({
             message: "Inference failed",
@@ -1647,10 +1664,10 @@ export async function registerRoutes(
 
           const contributions = Array.isArray(result.contributions)
             ? result.contributions.slice(0, 5).map((c: any) => ({
-                feature: c.feature,
-                impact: c.impact,
-                description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
-              }))
+              feature: c.feature,
+              impact: c.impact,
+              description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
+            }))
             : [];
 
           return res.json({
@@ -1682,7 +1699,7 @@ export async function registerRoutes(
     const roleCategory = (req.body?.role_category || req.body?.role)?.toString();
     if (!req.user) {
       console.error("[ML] ✗ Inference rejected: req.user is undefined");
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: "Unauthorized - user must be authenticated to run inference",
         status: "error"
       });
@@ -1690,10 +1707,10 @@ export async function registerRoutes(
 
     const userId = (req.user as User).id;
     const userEmail = (req.user as User).email || "unknown";
-    
+
     if (!userId) {
       console.error("[ML] ✗ Inference rejected: userId is undefined or invalid");
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: "Unauthorized - invalid user session",
         status: "error"
       });
@@ -1954,10 +1971,10 @@ export async function registerRoutes(
 
           const contributions = Array.isArray(result.contributions)
             ? result.contributions.slice(0, 5).map((c: any) => ({
-                feature: c.feature,
-                impact: c.impact,
-                description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
-              }))
+              feature: c.feature,
+              impact: c.impact,
+              description: `Feature '${c.feature}' contributed with impact ${c.impact?.toFixed?.(4) ?? c.impact}`,
+            }))
             : [];
 
           // Success response
