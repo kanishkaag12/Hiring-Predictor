@@ -46,9 +46,6 @@ export interface IStorage {
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
 }
 
-// Initialize database connection
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
 // ====================
 // DATABASE INITIALIZATION
 // ====================
@@ -636,20 +633,42 @@ export async function warmConnectionPool(count: number = 3): Promise<void> {
 
   console.log(`[storage] Warming up connection pool with ${count} connections...`);
   const clients: any[] = [];
-  
+
   try {
+    // Connect sequentially to be gentler on the database and handle each safely
     for (let i = 0; i < count; i++) {
-      const client = await pool.connect();
-      clients.push(client);
+      try {
+        const client = await pool.connect();
+
+        // Add a temporary error handler to the client to prevent process crash
+        // if the connection is reset while we're holding it.
+        const errorHandler = (err: Error) => {
+          console.warn("[storage] Individual client error during warmup:", err.message);
+        };
+        client.once("error", errorHandler);
+
+        clients.push({ client, errorHandler });
+      } catch (connErr) {
+        console.warn(`[storage] Warmup connection ${i + 1} failed:`, connErr instanceof Error ? connErr.message : String(connErr));
+      }
     }
-    console.log(`[storage] ✓ ${count} connections established and ready`);
-    
-    // Release all clients back to pool
-    clients.forEach(client => client.release());
+
+    console.log(`[storage] ✓ established ${clients.length} of ${count} requested warmup connections`);
+
+    // Release all clients back to pool and remove temporary handlers
+    clients.forEach(({ client, errorHandler }) => {
+      client.removeListener("error", errorHandler);
+      client.release();
+    });
   } catch (err) {
-    console.error("[storage] Connection pool warming failed:", err);
-    // Release any successful connections
-    clients.forEach(client => client.release());
+    console.error("[storage] Fatal error during connection pool warming:", err);
+    // Cleanup any remaining successful connections
+    clients.forEach(({ client, errorHandler }) => {
+      try {
+        client.removeListener("error", errorHandler);
+        client.release();
+      } catch { /* ignore */ }
+    });
   }
 }
 
