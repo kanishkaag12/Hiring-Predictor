@@ -21,12 +21,12 @@ export interface FeatureVector {
   projects_score: number;              // 0-1: Normalized project count
   resume_completeness_score: number;   // 0-1: Resume completeness
   education_level_score: number;       // 0-1: Mapped education level
-  
+
   // Placeholder features (to be filled by future implementations)
   behavioral_intent_score: number;     // 0-1: User interest/intent (default 0.0)
   market_demand_score: number;         // 0-1: Market demand for role (default 0.5)
   competition_score: number;           // 0-1: Competition level (default 0.5)
-  
+
   // Metadata for interpretability
   _feature_names: string[];
   _normalization_info?: {
@@ -44,14 +44,14 @@ const EDUCATION_LEVEL_MAPPING: Record<string, number> = {
   "phd": 1.0,
   "doctoral": 1.0,
   "postdoctoral": 1.0,
-  
+
   // Advanced degrees
   "master": 0.85,
   "masters": 0.85,
   "mba": 0.85,
   "mtech": 0.85,
   "msc": 0.85,
-  
+
   // Bachelor degrees
   "bachelor": 0.70,
   "bachelors": 0.70,
@@ -61,17 +61,17 @@ const EDUCATION_LEVEL_MAPPING: Record<string, number> = {
   "b.tech": 0.70,
   "b.s": 0.70,
   "b.a": 0.70,
-  
+
   // Associate/Diplomas
   "associate": 0.50,
   "diploma": 0.45,
-  
+
   // Certifications/Short courses
   "certification": 0.30,
   "certified": 0.30,
   "bootcamp": 0.35,
   "course": 0.25,
-  
+
   // High school
   "high school": 0.15,
   "12th": 0.15,
@@ -90,20 +90,20 @@ function extractEducationScore(education: Array<{ degree?: string }>): number {
   if (!education || education.length === 0) {
     return 0.0;
   }
-  
+
   let maxScore = 0.0;
-  
+
   for (const edu of education) {
     if (!edu.degree) continue;
-    
+
     const degreeStr = edu.degree.toLowerCase().trim();
-    
+
     // Try exact match first
     if (EDUCATION_LEVEL_MAPPING[degreeStr]) {
       maxScore = Math.max(maxScore, EDUCATION_LEVEL_MAPPING[degreeStr]);
       continue;
     }
-    
+
     // Try substring matching
     for (const [key, score] of Object.entries(EDUCATION_LEVEL_MAPPING)) {
       if (degreeStr.includes(key) || key.includes(degreeStr)) {
@@ -112,7 +112,7 @@ function extractEducationScore(education: Array<{ degree?: string }>): number {
       }
     }
   }
-  
+
   return Math.min(1.0, maxScore);
 }
 
@@ -135,14 +135,14 @@ function extractEducationScore(education: Array<{ degree?: string }>): number {
  */
 function normalizeExperience(experienceMonths: number): number {
   if (experienceMonths <= 0) return 0.0;
-  
+
   const maxMonths = 120; // 10 years as plateau point
-  
+
   if (experienceMonths < maxMonths) {
     // Exponential saturation curve
     return Math.min(1.0, 1 - Math.exp(-0.02 * experienceMonths));
   }
-  
+
   return 1.0;
 }
 
@@ -166,13 +166,13 @@ function normalizeExperience(experienceMonths: number): number {
  */
 function normalizeProjects(projectsCount: number): number {
   if (projectsCount <= 0) return 0.0;
-  
+
   const maxProjects = 20;
-  
+
   if (projectsCount < maxProjects) {
     return Math.min(1.0, Math.log(1 + projectsCount) / Math.log(1 + maxProjects));
   }
-  
+
   return 1.0;
 }
 
@@ -185,18 +185,18 @@ function normalizeProjects(projectsCount: number): number {
  */
 function normalizeCompleteness(completenessScore: number | string): number {
   let score = 0;
-  
+
   if (typeof completenessScore === "string") {
     score = parseFloat(completenessScore) || 0;
   } else {
     score = completenessScore || 0;
   }
-  
+
   // If score is in 0-100 range, convert to 0-1
   if (score > 1) {
     score = Math.min(100, Math.max(0, score)) / 100;
   }
-  
+
   return Math.min(1.0, Math.max(0.0, score));
 }
 
@@ -224,13 +224,13 @@ export function generateFeatureVector(
 ): FeatureVector {
   // Validate and clamp skill match score to [0, 1]
   const validSkillMatch = Math.min(1.0, Math.max(0.0, skillMatchScore || 0));
-  
+
   // Extract and normalize individual features
   const experienceScore = normalizeExperience(parsedResume.experience_months || 0);
   const projectsScore = normalizeProjects(parsedResume.projects_count || 0);
   const completenessScore = normalizeCompleteness(parsedResume.resume_completeness_score);
   const educationScore = extractEducationScore(parsedResume.education || []);
-  
+
   // Default placeholder scores
   // behavioral_intent: will be filled when user interest data available (for now: 0.0)
   // market_demand: will be filled from job market analysis (for now: 0.5)
@@ -238,7 +238,7 @@ export function generateFeatureVector(
   const behavioralScore = Math.min(1.0, Math.max(0.0, behavioralIntentScore ?? 0.0));
   const marketScore = Math.min(1.0, Math.max(0.0, marketDemandScore ?? 0.5));
   const competScore = Math.min(1.0, Math.max(0.0, competitionScore ?? 0.5));
-  
+
   // Feature ordering (must be consistent across all vectors for ML model)
   const featureNames = [
     "skill_match_score",
@@ -250,7 +250,7 @@ export function generateFeatureVector(
     "market_demand_score",
     "competition_score",
   ];
-  
+
   const featureVector: FeatureVector = {
     skill_match_score: validSkillMatch,
     experience_score: experienceScore,
@@ -266,7 +266,7 @@ export function generateFeatureVector(
       projects_max_count: 20,
     },
   };
-  
+
   return featureVector;
 }
 
@@ -288,7 +288,7 @@ export function generateFeatureVectors(
   competitionScores?: Record<string, number>
 ): Record<string, FeatureVector> {
   const featureVectors: Record<string, FeatureVector> = {};
-  
+
   for (const [roleName, skillMatchScore] of Object.entries(roleSkillMatches)) {
     featureVectors[roleName] = generateFeatureVector(
       roleName,
@@ -299,7 +299,7 @@ export function generateFeatureVectors(
       competitionScores?.[roleName]
     );
   }
-  
+
   return featureVectors;
 }
 
@@ -336,17 +336,45 @@ export function featureVectorsToArrays(
   featureVectors: Record<string, FeatureVector>
 ): Record<string, number[]> {
   const arrays: Record<string, number[]> = {};
-  
+
   for (const [roleName, vector] of Object.entries(featureVectors)) {
     arrays[roleName] = featureVectorToArray(vector);
   }
-  
+
   return arrays;
+}
+
+/**
+ * Combined version to match routes.ts expectations.
+ * Maps per-role market features and skill match scores into feature vectors.
+ */
+export function generateCombinedFeatureVectors(
+  parsedResume: ParsedResumeData,
+  roleSkillMatches: Record<string, number>,
+  roleMarketFeatures: Record<string, any>,
+  behavioralIntentScore?: number
+): Record<string, FeatureVector> {
+  const marketDemandScores: Record<string, number> = {};
+  const competitionScores: Record<string, number> = {};
+
+  for (const [role, features] of Object.entries(roleMarketFeatures)) {
+    marketDemandScores[role] = features.market_demand_score ?? 0.5;
+    competitionScores[role] = features.competition_score ?? 0.5;
+  }
+
+  return generateFeatureVectors(
+    roleSkillMatches,
+    parsedResume,
+    behavioralIntentScore,
+    marketDemandScores,
+    competitionScores
+  );
 }
 
 export default {
   generateFeatureVector,
   generateFeatureVectors,
+  generateCombinedFeatureVectors,
   featureVectorToArray,
   featureVectorsToArrays,
 };
