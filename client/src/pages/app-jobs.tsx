@@ -27,7 +27,7 @@ export default function AppJobsPage() {
           companySize
         });
 
-        const res = await fetch(`/api/jobs?${params.toString()}`);
+        const res = await fetch(`/api/jobs?${params.toString()}`, { credentials: "include" });
         const data = await res.json();
         setJobs(data);
       } catch (err) {

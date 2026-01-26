@@ -26,6 +26,8 @@ export interface Job {
   isInternship?: boolean;
   hiringPlatform?: "Greenhouse" | "Lever" | "Remotive" | "Indeed" | "Other";
   hiringPlatformUrl?: string; // URL to the board
+  applicants?: number;
+  daysSincePosted?: number;
 }
 
 export interface JobFilter {

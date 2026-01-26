@@ -187,7 +187,7 @@ async function runAnalysisAsync(user: User) {
         const skills = await storage.getSkills(userId);
         const projects = await storage.getProjects(userId);
         const experiences = await storage.getExperiences(userId);
-        const resumeText = user.resume || "";
+        const resumeText = (user as any).resume || "";
 
         // Step 1: Calculate ROLE-SPECIFIC readiness
         // Each role has a different score based on semantic skill matching, project relevance, etc.
@@ -212,8 +212,8 @@ async function runAnalysisAsync(user: User) {
         const globalReadiness =
             roleReadiness.length > 0
                 ? Math.round(
-                      roleReadiness.reduce((sum, r) => sum + r.score, 0) / roleReadiness.length
-                  )
+                    roleReadiness.reduce((sum, r) => sum + r.score, 0) / roleReadiness.length
+                )
                 : 0;
 
         // Step 3: Generate What-If scenarios
