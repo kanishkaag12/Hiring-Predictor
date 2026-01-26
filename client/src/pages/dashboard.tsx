@@ -96,10 +96,10 @@ export default function Dashboard() {
 
   // Use backend-calculated completeness flag as single source of truth
   const dashboardUnlocked = completeness?.dashboardUnlocked ?? false;
-  
+
   // Extract data for context only - DO NOT use for lock/unlock decisions
   const { hasRoles, hasSkills, hasResume, hasUserType, hasProjects, hasExperience } = data.unlockStatus || {};
-  
+
   // Check for resume parsing errors even if dashboard is unlocked
   const resumeParsingStatus = data.resumeParsingStatus;
   const hasParsingError = resumeParsingStatus?.hasError;
@@ -116,7 +116,7 @@ export default function Dashboard() {
           >
             <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
           </motion.div>
-          
+
           <div className="text-center space-y-4">
             <h2 className="text-4xl font-black tracking-tight">🔍 Analyzing Your Profile</h2>
             <p className="text-muted-foreground text-lg max-w-md">
@@ -158,29 +158,29 @@ export default function Dashboard() {
   if (!dashboardUnlocked) {
     // Show detailed checklist based on completeness flags
     const checklist = [
-      { 
-        id: "roles", 
-        label: "Select interest roles (min 2)", 
-        complete: completeness?.interestRolesComplete ?? false, 
-        path: "/profile?tab=identity" 
+      {
+        id: "roles",
+        label: "Select interest roles (min 2)",
+        complete: completeness?.interestRolesComplete ?? false,
+        path: "/profile?tab=identity"
       },
-      { 
-        id: "resume", 
-        label: "Upload your resume", 
-        complete: completeness?.resumeUploaded ?? false, 
-        path: "/profile?tab=identity" 
+      {
+        id: "resume",
+        label: "Upload your resume",
+        complete: completeness?.resumeUploaded ?? false,
+        path: "/profile?tab=identity"
       },
-      { 
-        id: "usertype", 
-        label: "Set your Career Status", 
-        complete: completeness?.careerStatusSet ?? false, 
-        path: "/profile" 
+      {
+        id: "usertype",
+        label: "Set your Career Status",
+        complete: completeness?.careerStatusSet ?? false,
+        path: "/profile"
       },
-      { 
-        id: "skills", 
-        label: "Add at least one skill", 
-        complete: completeness?.skillsAdded ?? false, 
-        path: "/profile?tab=skills" 
+      {
+        id: "skills",
+        label: "Add at least one skill",
+        complete: completeness?.skillsAdded ?? false,
+        path: "/profile?tab=skills"
       },
     ];
 
@@ -460,11 +460,11 @@ export default function Dashboard() {
             {/* Top Predicted Roles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {data.mlRolePredictions.topRoles?.slice(0, 6).map((role: any, idx: number) => (
-                <Card 
+                <Card
                   key={idx}
                   className={cn(
                     "border-border/50 overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]",
-                    role.confidence === 'high' 
+                    role.confidence === 'high'
                       ? "bg-linear-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/30"
                       : role.confidence === 'medium'
                         ? "bg-linear-to-br from-primary/10 to-primary/5 border-primary/30"
@@ -484,41 +484,41 @@ export default function Dashboard() {
                         </div>
                         <span className="text-xs text-muted-foreground">{role.cluster}</span>
                       </div>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
                           "text-[10px] capitalize shrink-0",
                           role.confidence === 'high' ? "border-emerald-500/50 text-emerald-500" :
-                          role.confidence === 'medium' ? "border-primary/50 text-primary" : 
-                          "border-muted-foreground/50 text-muted-foreground"
+                            role.confidence === 'medium' ? "border-primary/50 text-primary" :
+                              "border-muted-foreground/50 text-muted-foreground"
                         )}
                       >
                         {role.confidence}
                       </Badge>
                     </div>
-                    
+
                     {/* Probability Display */}
                     <div className="flex items-end gap-2 mb-3">
                       <span className={cn(
                         "text-3xl font-black tabular-nums",
                         role.confidence === 'high' ? "text-emerald-500" :
-                        role.confidence === 'medium' ? "text-primary" : "text-muted-foreground"
+                          role.confidence === 'medium' ? "text-primary" : "text-muted-foreground"
                       )}>
                         {Math.round(role.probability * 100)}
                       </span>
                       <span className="text-sm text-muted-foreground mb-1">% fit</span>
                     </div>
-                    
+
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden mb-3">
-                      <motion.div 
+                      <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.round(role.probability * 100)}%` }}
                         transition={{ duration: 0.8, ease: "easeOut", delay: idx * 0.1 }}
                         className={cn(
                           "h-full rounded-full",
                           role.confidence === 'high' ? "bg-linear-to-r from-emerald-500 to-emerald-400" :
-                          role.confidence === 'medium' ? "bg-linear-to-r from-primary to-primary/70" : 
-                          "bg-muted-foreground/40"
+                            role.confidence === 'medium' ? "bg-linear-to-r from-primary to-primary/70" :
+                              "bg-muted-foreground/40"
                         )}
                       />
                     </div>
@@ -581,15 +581,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Section: What-If Simulator (Progressive) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1 flex items-center gap-2">
-              What-If Simulator
-            </h3>
-          </div>
-          <WhatIfSimulator />
-        </div>
+
 
         {/* Section 2: Market Demand & Competition per Role */}
         <section className="space-y-4">
