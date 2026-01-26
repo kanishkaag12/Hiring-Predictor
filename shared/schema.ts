@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   location: text("location"),
   githubUrl: text("github_url"),
   linkedinUrl: text("linkedin_url"),
+  profileImage: text("profile_image"),
   resumeUrl: text("resume_url"),
   resumeName: text("resume_name"),
   resumeUploadedAt: timestamp("resume_uploaded_at"),
