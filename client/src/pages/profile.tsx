@@ -9,8 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText, Github, Linkedin, MapPin,
   GraduationCap, Briefcase, Plus, Trash2,
-  Edit3, Code, Layers, Info, CheckCircle2,
-  CloudLightning, TrendingUp, Target, Eye, Building2
+  Edit3, Code, Layers, Info, Target, Eye, Building2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProfile } from "@/hooks/useProfile";
@@ -37,13 +36,20 @@ export default function Profile() {
     addProject, removeProject,
     addExperience, removeExperience,
     updateLinkedin, updateGithub, uploadResume,
-    updateInterestRoles
+    updateInterestRoles, uploadProfilePhoto, removeProfilePhoto
   } = useProfile();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState("identity");
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [linkedinModalOpen, setLinkedinModalOpen] = useState(false);
   const [githubModalOpen, setGithubModalOpen] = useState(false);
+  const [addSkillOpen, setAddSkillOpen] = useState(false);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
+  const [addExperienceOpen, setAddExperienceOpen] = useState(false);
+  const [addInterestRolesOpen, setAddInterestRolesOpen] = useState(false);
+  const [addInterestRolesOpen2, setAddInterestRolesOpen2] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState(profile?.userType || "");
 
   useEffect(() => {
@@ -51,24 +57,6 @@ export default function Profile() {
       setSelectedUserType(profile.userType);
     }
   }, [profile?.userType]);
-
-  // AI Insights State
-  const [insights, setInsights] = useState<any>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const generateInsights = async () => {
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/profile/ai-insights", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to generate insights");
-      const data = await res.json();
-      setInsights(data);
-    } catch (err) {
-      toast({ title: "AI Analysis Failed", description: "Could not connect to AI service.", variant: "destructive" });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   if (isLoading || !profile) {
     return (
@@ -89,8 +77,35 @@ export default function Profile() {
     try {
       await updateProfile.mutateAsync(data);
       toast({ title: "Profile updated", description: "Your personal info has been saved." });
+      setEditProfileOpen(false);
     } catch (err) {
       toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
+      return;
+    }
+    try {
+      await uploadProfilePhoto.mutateAsync(file);
+      toast({ title: "Photo updated", description: "Your profile photo has been saved." });
+      setPhotoModalOpen(false);
+    } catch (err) {
+      toast({ title: "Upload failed", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handlePhotoRemove = async () => {
+    try {
+      await removeProfilePhoto.mutateAsync();
+      toast({ title: "Photo removed", description: "Your profile photo has been removed." });
+      setPhotoModalOpen(false);
+    } catch (err) {
+      toast({ title: "Remove failed", description: (err as Error).message, variant: "destructive" });
     }
   };
 
@@ -139,15 +154,21 @@ export default function Profile() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                 <div className="flex gap-6 items-center">
                   <div className="relative group">
-                    <Avatar className="w-28 h-28 border-4 border-background shadow-2xl group-hover:scale-105 transition-transform duration-300">
-                      <AvatarImage src="" />
-                      <AvatarFallback className="text-3xl font-bold bg-primary text-primary-foreground">
-                        {profile.name?.split(' ')?.map(n => n[0])?.join('') || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute bottom-0 right-0 p-1.5 bg-background rounded-full border border-border cursor-pointer hover:bg-accent transition-colors">
-                      <Edit3 className="w-4 h-4" />
-                    </div>
+                    <button
+                      onClick={() => setPhotoModalOpen(true)}
+                      className="relative"
+                      title="Click to upload profile photo"
+                    >
+                      <Avatar className="w-28 h-28 border-4 border-background shadow-2xl group-hover:scale-105 transition-transform duration-300 cursor-pointer">
+                        <AvatarImage src={profile.profileImage || ""} />
+                        <AvatarFallback className="text-3xl font-bold bg-primary text-primary-foreground">
+                          {profile.name?.split(' ')?.map((n: string) => n[0])?.join('') || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="absolute bottom-0 right-0 p-1.5 bg-background rounded-full border border-border cursor-pointer hover:bg-accent transition-colors group-hover:scale-110 group-hover:shadow-lg">
+                        <Edit3 className="w-4 h-4" />
+                      </div>
+                    </button>
                   </div>
                   <div className="space-y-1">
                     <h1 className="text-4xl font-display font-bold tracking-tight">{profile.name || "Set Your Name"}</h1>
@@ -160,7 +181,7 @@ export default function Profile() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Dialog>
+                  <Dialog open={editProfileOpen} onOpenChange={setEditProfileOpen}>
                     <DialogTrigger asChild>
                       <Button className="rounded-xl shadow-lg shadow-primary/20 gap-2">
                         <Edit3 className="w-4 h-4" /> Edit Profile
@@ -239,11 +260,10 @@ export default function Profile() {
 
         {/* MAIN NAVIGATION TABS */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px] h-14 p-1 bg-muted/40 backdrop-blur-sm rounded-2xl">
+          <TabsList className="grid w-full grid-cols-3 h-14 p-1 bg-muted/40 backdrop-blur-sm rounded-2xl">
             <TabsTrigger value="identity" className="rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Identity</TabsTrigger>
             <TabsTrigger value="skills" className="rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Skills</TabsTrigger>
             <TabsTrigger value="experience" className="rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Experience</TabsTrigger>
-            <TabsTrigger value="insights" className="rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm">Insights</TabsTrigger>
           </TabsList>
 
           <div className="mt-8">
@@ -270,7 +290,7 @@ export default function Profile() {
                         <Target className="w-6 h-6 text-primary" />
                       </div>
                       <p className="text-sm font-medium text-muted-foreground mb-4">No interest roles added yet.</p>
-                      <Dialog>
+                      <Dialog open={addInterestRolesOpen} onOpenChange={setAddInterestRolesOpen}>
                         <DialogTrigger asChild>
                           <Button className="rounded-xl shadow-lg shadow-primary/20 gap-2 font-bold">
                             <Plus className="w-4 h-4" /> Add Interest Roles
@@ -283,7 +303,10 @@ export default function Profile() {
                           </DialogHeader>
                           <RoleSelector
                             currentRoles={profile?.interestRoles || []}
-                            onSave={(roles) => updateInterestRoles.mutate(roles)}
+                            onSave={(roles) => {
+                              updateInterestRoles.mutate(roles);
+                              setAddInterestRolesOpen(false);
+                            }}
                           />
                         </DialogContent>
                       </Dialog>
@@ -316,7 +339,7 @@ export default function Profile() {
                             ? "Select at least 2 roles to unlock dashboard intelligence."
                             : "Your profile is being analyzed for these roles."}
                         </p>
-                        <Dialog>
+                        <Dialog open={addInterestRolesOpen2} onOpenChange={setAddInterestRolesOpen2}>
                           <DialogTrigger asChild>
                             <Button variant="outline" size="sm" className="rounded-xl gap-2 font-bold px-4 hover:bg-primary/5">
                               <Plus className="w-3 h-3" /> Manage Roles
@@ -328,7 +351,10 @@ export default function Profile() {
                             </DialogHeader>
                             <RoleSelector
                               currentRoles={profile.interestRoles || []}
-                              onSave={(roles) => updateInterestRoles.mutate(roles)}
+                              onSave={(roles) => {
+                                updateInterestRoles.mutate(roles);
+                                setAddInterestRolesOpen2(false);
+                              }}
                             />
                           </DialogContent>
                         </Dialog>
@@ -347,7 +373,7 @@ export default function Profile() {
                         <CardTitle className="text-xl font-bold">Projects</CardTitle>
                         <CardDescription>Showcase your technical depth and problem-solving skills.</CardDescription>
                       </div>
-                      <Dialog>
+                      <Dialog open={addProjectOpen} onOpenChange={setAddProjectOpen}>
                         <DialogTrigger asChild>
                           <Button size="sm" variant="outline" className="rounded-xl border-dashed">
                             <Plus className="w-4 h-4 mr-2" /> Add Project
@@ -370,6 +396,7 @@ export default function Profile() {
                                 githubLink: fd.get("github") as string,
                               });
                               toast({ title: "Project added" });
+                              setAddProjectOpen(false);
                             }}
                             className="space-y-4 py-4"
                           >
@@ -560,7 +587,7 @@ export default function Profile() {
                     <CardTitle className="text-2xl font-bold">Skills Management</CardTitle>
                     <CardDescription>Your technical expertise level directly affects all AI predictions.</CardDescription>
                   </div>
-                  <Dialog>
+                  <Dialog open={addSkillOpen} onOpenChange={setAddSkillOpen}>
                     <DialogTrigger asChild>
                       <Button className="rounded-xl gap-2">
                         <Plus className="w-4 h-4" /> Add Skill
@@ -579,6 +606,7 @@ export default function Profile() {
                             level: fd.get("level") as string,
                           });
                           toast({ title: "Skill added" });
+                          setAddSkillOpen(false);
                         }}
                         className="space-y-4 py-4"
                       >
@@ -655,7 +683,7 @@ export default function Profile() {
                     <CardTitle className="text-2xl font-bold">Experience</CardTitle>
                     <CardDescription>Work history and internships play a huge role in peer ranking.</CardDescription>
                   </div>
-                  <Dialog>
+                  <Dialog open={addExperienceOpen} onOpenChange={setAddExperienceOpen}>
                     <DialogTrigger asChild>
                       <Button className="rounded-xl gap-2">
                         <Plus className="w-4 h-4" /> Add Experience
@@ -676,6 +704,7 @@ export default function Profile() {
                             type: fd.get("type") as string,
                           });
                           toast({ title: "Experience added" });
+                          setAddExperienceOpen(false);
                         }}
                         className="space-y-4 py-4"
                       >
@@ -745,256 +774,6 @@ export default function Profile() {
                 </CardContent>
               </Card>
             </TabsContent>
-
-            {/* TAB 4: INSIGHTS (ANALYTICS & AI) */}
-            <TabsContent value="insights" className="space-y-8 mt-0 border-none p-0 outline-none">
-              {/* AI Career Assistant Section */}
-              <Card className="border-none bg-linear-to-br from-indigo-600/20 via-purple-600/10 to-transparent shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                  <CloudLightning className="w-48 h-48" />
-                </div>
-                <CardHeader className="relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-                      <CloudLightning className="w-6 h-6 text-primary-foreground" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-2xl font-black tracking-tight">AI Career Assistant</CardTitle>
-                      <CardDescription className="font-medium">Get a professional analysis of your profile and career roadmap.</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="relative z-10 space-y-6">
-                  {isGenerating ? (
-                    <div className="py-12 flex flex-col items-center justify-center space-y-4 animate-in fade-in zoom-in duration-300">
-                      <div className="relative">
-                        <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                        <CloudLightning className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-primary animate-pulse" />
-                      </div>
-                      <p className="font-bold text-lg animate-pulse">Consulting AI Career Expert...</p>
-                    </div>
-                  ) : insights ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-6"
-                    >
-                      <div className="p-6 rounded-2xl bg-background/50 border border-primary/20 backdrop-blur-sm">
-                        <h4 className="flex items-center gap-2 font-bold text-lg mb-2">
-                          <FileText className="w-5 h-5 text-primary" /> Professional Summary
-                        </h4>
-                        <p className="text-muted-foreground leading-relaxed">{insights.summary}</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                          <h4 className="font-bold text-sm uppercase tracking-widest text-emerald-400">Key Strengths</h4>
-                          <div className="space-y-2">
-                            {insights.strengths?.map((s: string, i: number) => (
-                              <div key={i} className="flex gap-2 items-start text-sm bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5" />
-                                <span>{s}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <h4 className="font-bold text-sm uppercase tracking-widest text-primary">Recommendations</h4>
-                          <div className="space-y-2">
-                            {insights.recommendations?.map((r: string, i: number) => (
-                              <div key={i} className="flex gap-2 items-start text-sm bg-primary/5 p-3 rounded-xl border border-primary/10">
-                                <TrendingUp className="w-4 h-4 text-primary mt-0.5" />
-                                <span>{r}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-xl border-dashed"
-                        onClick={generateInsights}
-                      >
-                        Regenerate Analysis
-                      </Button>
-                    </motion.div>
-                  ) : (
-                    <div className="py-10 text-center space-y-6">
-                      <div className="max-w-[500px] mx-auto space-y-2">
-                        <p className="text-muted-foreground">Our AI model will evaluate your skills, projects, and experiences against current industry standards to provide a personalized career roadmap.</p>
-                      </div>
-                      <Button
-                        onClick={generateInsights}
-                        className="px-8 rounded-xl h-12 text-base font-bold shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95"
-                      >
-                        Generate My AI Analysis
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Card className="border-border/40 bg-card/40 backdrop-blur-md overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-6 opacity-5">
-                    <Layers className="w-40 h-40" />
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      Profile Analytics
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger><Info className="w-4 h-4 text-muted-foreground" /></TooltipTrigger>
-                          <TooltipContent><p className="w-64">These metrics are live-calculated based on your current inputs compared to market requirements.</p></TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-8">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-end">
-                        <p className="text-sm font-bold opacity-70">Resume Data Points</p>
-                        <p className="text-2xl font-black text-emerald-400">
-                          {(() => {
-                            const dataPoints = [
-                              profile.name,
-                              profile.role,
-                              profile.college,
-                              profile.gradYear,
-                              profile.location,
-                              profile.githubUrl,
-                              profile.linkedinUrl,
-                              profile.resumeUrl,
-                              ...(profile.skills || []),
-                              ...(profile.projects || []),
-                              ...(profile.experiences || [])
-                            ].filter(Boolean).length;
-                            return `${dataPoints}/15`;
-                          })()}
-                        </p>
-                      </div>
-                      <Progress value={(() => {
-                        const dataPoints = [
-                          profile.name,
-                          profile.role,
-                          profile.college,
-                          profile.gradYear,
-                          profile.location,
-                          profile.githubUrl,
-                          profile.linkedinUrl,
-                          profile.resumeUrl,
-                          ...(profile.skills || []),
-                          ...(profile.projects || []),
-                          ...(profile.experiences || [])
-                        ].filter(Boolean).length;
-                        return Math.min(100, (dataPoints / 15) * 100);
-                      })()} className="h-2" />
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-end">
-                        <p className="text-sm font-bold opacity-70">Market Alignment</p>
-                        <p className="text-2xl font-black text-primary">
-                          {(() => {
-                            const score = ((profile.skills?.length || 0) * 10) + ((profile.projects?.length || 0) * 15) + ((profile.experiences?.length || 0) * 20);
-                            return score >= 60 ? "High" : score >= 30 ? "Medium" : "Low";
-                          })()}
-                        </p>
-                      </div>
-                      <Progress value={(() => {
-                        const score = ((profile.skills?.length || 0) * 10) + ((profile.projects?.length || 0) * 15) + ((profile.experiences?.length || 0) * 20);
-                        return Math.min(100, score);
-                      })()} className="h-2" />
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-end">
-                        <p className="text-sm font-bold opacity-70">Skill Depth Index</p>
-                        <p className="text-2xl font-black text-blue-400">
-                          {(() => {
-                            const advancedCount = profile.skills?.filter(s => s.level === "Advanced").length || 0;
-                            const intermediateCount = profile.skills?.filter(s => s.level === "Intermediate").length || 0;
-                            const beginnerCount = profile.skills?.filter(s => s.level === "Beginner").length || 0;
-                            const score = (advancedCount * 3 + intermediateCount * 2 + beginnerCount * 1) / Math.max(1, (profile.skills?.length || 1));
-                            return score.toFixed(1);
-                          })()} <span className="text-sm text-muted-foreground font-medium">/ 10</span>
-                        </p>
-                      </div>
-                      <Progress value={(() => {
-                        const advancedCount = profile.skills?.filter(s => s.level === "Advanced").length || 0;
-                        const intermediateCount = profile.skills?.filter(s => s.level === "Intermediate").length || 0;
-                        const beginnerCount = profile.skills?.filter(s => s.level === "Beginner").length || 0;
-                        const totalSkills = profile.skills?.length || 1;
-                        const score = ((advancedCount * 3 + intermediateCount * 2 + beginnerCount * 1) / totalSkills) * 10;
-                        return Math.min(100, score * 3.33);
-                      })()} className="h-2" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-none bg-linear-to-br from-primary/10 to-indigo-500/5 shadow-inner">
-                  <CardContent className="p-10 flex flex-col items-center justify-center text-center space-y-6">
-                    {(() => {
-                      const totalScore =
-                        (profile.skills?.length || 0) * 5 +
-                        (profile.projects?.length || 0) * 10 +
-                        (profile.experiences?.length || 0) * 15 +
-                        (profile.resumeUrl ? 10 : 0) +
-                        (profile.githubUrl ? 5 : 0) +
-                        (profile.linkedinUrl ? 5 : 0);
-
-                      const maxScore = 100; // Maximum possible score
-                      const completionPercentage = Math.min(100, Math.round((totalScore / maxScore) * 100));
-
-                      // Determine strength level and message
-                      let strengthLevel = "Getting Started";
-                      let strengthColor = "text-orange-400";
-                      let message = "Add skills, projects, and experiences to boost your profile!";
-                      let icon = "🚀";
-
-                      if (completionPercentage >= 80) {
-                        strengthLevel = "Excellent";
-                        strengthColor = "text-emerald-400";
-                        message = "Your profile is highly competitive in the job market!";
-                        icon = "⭐";
-                      } else if (completionPercentage >= 60) {
-                        strengthLevel = "Strong";
-                        strengthColor = "text-blue-400";
-                        message = "You're on the right track! Keep building your profile.";
-                        icon = "💪";
-                      } else if (completionPercentage >= 40) {
-                        strengthLevel = "Growing";
-                        strengthColor = "text-cyan-400";
-                        message = "Good progress! Add more projects to stand out.";
-                        icon = "📈";
-                      } else if (completionPercentage >= 20) {
-                        strengthLevel = "Building";
-                        strengthColor = "text-yellow-400";
-                        message = "You've started! Keep adding to improve your visibility.";
-                        icon = "🔨";
-                      }
-
-                      return (
-                        <>
-                          <div className="w-24 h-24 rounded-full bg-background/80 flex items-center justify-center shadow-xl text-4xl">
-                            {icon}
-                          </div>
-                          <div className="space-y-2">
-                            <h3 className="text-2xl font-black tracking-tight">Profile Strength</h3>
-                            <p className={`text-6xl font-display font-black ${strengthColor}`}>
-                              {completionPercentage}%
-                            </p>
-                            <p className="text-xl font-bold opacity-80">{strengthLevel}</p>
-                            <p className="text-muted-foreground font-medium max-w-[250px] mx-auto text-sm pt-2">
-                              {message}
-                            </p>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
           </div>
         </Tabs>
 
@@ -1050,6 +829,56 @@ export default function Profile() {
                 {updateGithub.isPending ? "Saving..." : "Save Connection"}
               </Button>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={photoModalOpen} onOpenChange={setPhotoModalOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Profile Photo</DialogTitle>
+              <DialogDescription>Add or update your professional photo. Supports JPG, PNG, and GIF formats.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {profile.profileImage && (
+                <div className="flex flex-col items-center gap-4">
+                  <Avatar className="w-32 h-32 border-4 border-border">
+                    <AvatarImage src={profile.profileImage} />
+                    <AvatarFallback className="text-4xl font-bold bg-primary text-primary-foreground">
+                      {profile.name?.split(' ')?.map((n: string) => n[0])?.join('') || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handlePhotoRemove}
+                    disabled={removeProfilePhoto.isPending}
+                    className="rounded-xl"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {removeProfilePhoto.isPending ? "Removing..." : "Remove Photo"}
+                  </Button>
+                </div>
+              )}
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border/40 rounded-2xl hover:border-primary/40 transition-colors bg-muted/5">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  disabled={uploadProfilePhoto.isPending}
+                  className="hidden"
+                  id="photo-input"
+                />
+                <label htmlFor="photo-input" className="flex flex-col items-center gap-2 cursor-pointer">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Edit3 className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-sm">{uploadProfilePhoto.isPending ? "Uploading..." : profile.profileImage ? "Change Photo" : "Upload Photo"}</p>
+                    <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 5MB</p>
+                  </div>
+                </label>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
