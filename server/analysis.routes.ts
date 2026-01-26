@@ -3,13 +3,14 @@ import { User, Skill, Project, Experience } from "@shared/schema";
 import { storage } from "./storage";
 import { RoleSpecificIntelligence } from "./services/role-specific-intelligence";
 import { WhatIfSimulator, WhatIfAction } from "./services/what-if-simulator";
+import { ROLE_REQUIREMENTS } from "@shared/roles";
 
 function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
-  if (req.isAuthenticated()) {
-    next();
-  } else {
-    res.status(401).json({ error: "Unauthorized" });
-  }
+    if (req.isAuthenticated()) {
+        next();
+    } else {
+        res.status(401).json({ error: "Unauthorized" });
+    }
 }
 
 const router = Router();
@@ -38,6 +39,8 @@ interface StoredAnalysis {
         explanation: string;
     }>;
     globalReadiness: number; // weighted average across roles
+    skillGaps: Array<{ role: string; missingSkills: string[] }>;
+    recommendations: string[];
     whatIfActions?: Array<{
         action: WhatIfAction;
         explanation: string;
@@ -75,6 +78,7 @@ router.post("/api/analysis/trigger", ensureAuthenticated, async (req, res) => {
             userId,
             status: "pending",
             roleReadiness: [],
+            globalReadiness: 0,
             skillGaps: [],
             recommendations: [],
             analyzedAt: new Date()
@@ -208,7 +212,7 @@ async function runAnalysisAsync(user: User) {
         const skills = await storage.getSkills(userId);
         const projects = await storage.getProjects(userId);
         const experiences = await storage.getExperiences(userId);
-        const resumeText = user.resume || "";
+        const resumeText = (user as any).resume || "";
 
         // Step 1: Calculate ROLE-SPECIFIC readiness (NOT one-size-fits-all)
         const roleReadiness = [];
@@ -281,14 +285,12 @@ function computeRoleReadiness(
     projects: Project[],
     experiences: Experience[]
 ): Array<{ roleName: string; score: number; reasoning: string }> {
-    const { ROLE_REQUIREMENTS } = require("@shared/roles");
-
     return (user.interestRoles || []).map((roleName: string) => {
         const role = ROLE_REQUIREMENTS[roleName] || { requiredSkills: [], minProjects: 1 };
 
         // Skill match
         const skillMatches = skills.filter(s =>
-            role.requiredSkills.some(req => req.toLowerCase().includes(s.name.toLowerCase()))
+            role.requiredSkills.some((rSkill: string) => rSkill.toLowerCase().includes(s.name.toLowerCase()))
         );
         const skillScore = (skillMatches.length / Math.max(1, role.requiredSkills.length)) * 40;
 
@@ -323,13 +325,12 @@ function identifySkillGaps(
     skills: Skill[],
     roles: string[]
 ): Array<{ role: string; missingSkills: string[] }> {
-    const { ROLE_REQUIREMENTS } = require("@shared/roles");
     const userSkillNames = skills.map(s => s.name.toLowerCase());
 
     return roles.map(roleName => {
         const role = ROLE_REQUIREMENTS[roleName] || { requiredSkills: [] };
-        const missingSkills = role.requiredSkills.filter((req: string) => {
-            const options = req.toLowerCase().split("||").map((o: string) => o.trim());
+        const missingSkills = role.requiredSkills.filter((rSkill: string) => {
+            const options = rSkill.toLowerCase().split("||").map((o: string) => o.trim());
             return !options.some((opt: string) =>
                 userSkillNames.some(userSkill => userSkill.includes(opt))
             );
