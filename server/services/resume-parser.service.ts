@@ -4,7 +4,7 @@
  * Calls the Python script to extract structured resume data.
  */
 
-import { execSync, spawn } from "child_process";
+import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -19,8 +19,70 @@ export interface ParsedResumeData {
   experience_months: number;
   projects_count: number;
   resume_completeness_score: number;
+  skills_extraction_warning?: boolean;
 }
 
+
+/**
+ * Get the project root directory.
+ * 
+ * Assumes standard directory structure:
+ * - package.json exists at project root
+ * - server/ directory exists at project root
+ * 
+ * Returns the directory containing package.json and server/
+ */
+export function getProjectRoot(): string {
+  const cwd = process.cwd();
+  
+  // Check if we're already at project root
+  if (
+    fs.existsSync(path.join(cwd, "package.json")) &&
+    fs.existsSync(path.join(cwd, "server"))
+  ) {
+    return cwd;
+  }
+  
+  // Check parent directory (if run from server/)
+  const parent = path.dirname(cwd);
+  if (
+    fs.existsSync(path.join(parent, "package.json")) &&
+    fs.existsSync(path.join(parent, "server"))
+  ) {
+    return parent;
+  }
+  
+  // Fallback to cwd
+  console.warn(
+    `[Resume Parser] Could not determine project root. Using current working directory: ${cwd}`
+  );
+  return cwd;
+}
+
+/**
+ * Find the Python executable path from the virtual environment.
+ * 
+ * Looks for .venv in the project root directory.
+ * Supports both Windows (.venv\Scripts\python.exe) and Unix (.venv/bin/python)
+ * 
+ * Falls back to "python" if .venv not found.
+ */
+export function findPythonExecutable(projectRoot: string): string {
+  const isWindows = os.platform() === "win32";
+  const venvPythonPath = path.join(
+    projectRoot,
+    ".venv",
+    isWindows ? "Scripts" : "bin",
+    isWindows ? "python.exe" : "python"
+  );
+
+  if (fs.existsSync(venvPythonPath)) {
+    return venvPythonPath;
+  }
+
+  // Fallback to system python
+  return isWindows ? "python.exe" : "python";
+}
 /**
  * Dynamically find the project root directory.
  * 
@@ -36,224 +98,273 @@ export interface ParsedResumeData {
  * 
  * This ensures script paths work regardless of working directory at startup.
  */
-function findProjectRoot(): string {
-  let currentDir = process.cwd();
-  const maxLevels = 10; // Safety limit to prevent infinite loops
-  let innerProjectRoot: string | null = null;
+
+/**
+ * Verify resume parser script exists at canonical location.
+ * Returns absolute path if it exists, null if missing.
+ */
+export function getResumeParserPath(): string | null {
+  const projectRoot = getProjectRoot();
+  const parserPath = path.resolve(projectRoot, "python", "resume_parser.py");
   
-  console.log(`[Resume Parser] Starting search from: ${currentDir}`);
-  
-  // First, find the inner project root (contains package.json and server/)
-  for (let i = 0; i < maxLevels; i++) {
-    const packageJsonPath = path.join(currentDir, "package.json");
-    const serverPath = path.join(currentDir, "server");
-    
-    if (fs.existsSync(packageJsonPath) && fs.existsSync(serverPath)) {
-      innerProjectRoot = currentDir;
-      console.log(`[Resume Parser] Inner project root found at: ${innerProjectRoot}`);
-      break;
-    }
-    
-    // Move up one directory
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
-      break; // Reached filesystem root
-    }
-    currentDir = parentDir;
+  if (fs.existsSync(parserPath)) {
+    return parserPath;
   }
   
-  // Now find the outer project root (one level above inner, contains scripts/)
-  if (innerProjectRoot) {
-    const outerRoot = path.dirname(innerProjectRoot);
-    const scriptsDir = path.join(outerRoot, "scripts");
-    
-    if (fs.existsSync(scriptsDir)) {
-      console.log(`[Resume Parser] Outer project root detected at: ${outerRoot}`);
-      return outerRoot;
-    }
-  }
-  
-  // Fallback: go up from current directory
-  console.warn("[Resume Parser] Could not find project root structure, using fallback");
-  const fallback = path.dirname(process.cwd());
-  console.warn(`[Resume Parser] Fallback path: ${fallback}`);
-  return fallback;
+  return null;
 }
+
+/**
+ * Log parser readiness at startup (dev only).
+ */
+export function logParserStatus(): void {
+  const devMode = process.env.NODE_ENV !== "production";
+  if (!devMode) return;
+  
+  const parserPath = getResumeParserPath();
+  
+  if (parserPath) {
+    console.log(`[Resume Parser] ✓ Resume parser found at: ${parserPath}`);
+  } else {
+    console.warn(
+      `[Resume Parser] ⚠ Resume parser NOT found at: ${path.resolve(getProjectRoot(), "python", "resume_parser.py")}`
+    );
+    console.warn(
+      `[Resume Parser] Resume uploads will gracefully degrade to empty defaults`
+    );
+  }
+}
+/**
+ * Parse a resume buffer (PDF or DOCX) and extract structured data.
+ * 
+ * @param fileBuffer - The resume file as a Buffer
+ * @param fileName - Original filename (used to determine file type)
+ * @returns Parsed resume data or empty defaults on error
+ */
 
 /**
  * Parse a resume buffer (PDF or DOCX) and extract structured data.
  * 
  * @param fileBuffer - The resume file as a Buffer
  * @param fileName - Original filename (used to determine file type)
- * @returns Parsed resume data
+ * @returns Parsed resume data or empty defaults on error
+ * @throws Error if parsing fails critically (NOT caught - caller should handle)
  */
 export async function parseResume(
   fileBuffer: Buffer,
   fileName: string
 ): Promise<ParsedResumeData> {
-  // Defensive: ensure we have a valid file buffer before proceeding
-  if (!fileBuffer || !Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
-    throw new Error(
-      "Empty or invalid resume file buffer provided. Ensure the upload uses memoryStorage or read the file from disk before parsing."
-    );
+  const devMode = process.env.NODE_ENV !== "production";
+  const startTime = Date.now();
+
+  // Check if parser exists
+  const parserPath = getResumeParserPath();
+  if (!parserPath) {
+    const err = new Error("Resume parser not found - skipping parse");
+    if (devMode) {
+      console.log(`[Resume Parser] ${err.message}`);
+    }
+    throw err;
   }
 
-  // Create a temporary file
+  // Defensive validation
+  if (!fileBuffer || !Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+    throw new Error("Empty or invalid resume file buffer");
+  }
+
+  // Create temporary file
   const tempDir = os.tmpdir();
-  const tempFilePath = path.join(
-    tempDir,
-    `resume_${Date.now()}_${Math.random().toString(36).substr(2, 9)}${path.extname(fileName)}`
-  );
+  const tempFileName = `resume_${Date.now()}_${Math.random().toString(36).substr(2, 9)}${path.extname(fileName)}`;
+  const tempFilePath = path.resolve(tempDir, tempFileName);
 
   try {
+    if (devMode) {
+      console.log(`[Resume Parser] Writing temp file: ${tempFilePath}`);
+    }
+
     // Write buffer to temporary file
     fs.writeFileSync(tempFilePath, fileBuffer);
+
+    if (devMode) {
+      console.log(`[Resume Parser] Temp file written (${fileBuffer.length} bytes)`);
+    }
 
     // Call the Python resume parser
     const result = await callPythonParser(tempFilePath);
 
+    const duration = Date.now() - startTime;
+    if (devMode) {
+      console.log(
+        `[Resume Parser] Successfully parsed: ${result.skills.length} skills, ${result.education.length} education entries, completeness ${result.resume_completeness_score}`
+      );
+      console.log(`[Resume Parser] Parse duration: ${duration}ms`);
+    }
+
     return result;
   } catch (error) {
-    console.error("Resume parsing error:", error);
-    throw new Error(`Failed to parse resume: ${error instanceof Error ? error.message : String(error)}`);
+    const duration = Date.now() - startTime;
+    console.error(
+      `[Resume Parser] Parse failed after ${duration}ms: ${error instanceof Error ? error.message : String(error)}`
+    );
+    throw error;
   } finally {
     // Clean up temporary file
     try {
       if (fs.existsSync(tempFilePath)) {
         fs.unlinkSync(tempFilePath);
+        if (devMode) {
+          console.log(`[Resume Parser] Temp file cleaned up`);
+        }
       }
     } catch (cleanupError) {
-      console.error("Failed to clean up temp file:", cleanupError);
+      console.error("[Resume Parser] Cleanup failed:", cleanupError);
     }
   }
 }
+/**
+ * Call the Python resume parser script with proper error handling, timeout, and logging.
+ * 
+ * @param filePath - Absolute path to the resume file
+ * @returns Parsed resume data (or empty defaults on error)
+ */
+
 
 /**
- * Call the Python resume parser script synchronously.
+ * Call the Python resume parser script with timeout and error handling.
  * 
- * @param filePath - Path to the resume file
+ * @param filePath - Absolute path to the resume file
  * @returns Parsed resume data
+ * @throws Error if parsing fails
  */
 function callPythonParser(filePath: string): Promise<ParsedResumeData> {
   return new Promise((resolve, reject) => {
+    const devMode = process.env.NODE_ENV !== "production";
+    const startTime = Date.now();
+    let hasResolved = false;
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
     try {
-      // Dynamically find project root and resolve script path
-      const projectRoot = findProjectRoot();
-      const pythonScriptPath = path.join(
-        projectRoot,
-        "scripts",
-        "resume-parser",
-        "resume_parser.py"
-      );
+      const projectRoot = getProjectRoot();
+      const parserPath = getResumeParserPath();
 
-      console.log(`[Resume Parser] Looking for script at: ${pythonScriptPath}`);
-
-      // Check if the Python script exists
-      if (!fs.existsSync(pythonScriptPath)) {
-        // Provide helpful debugging information
-        const searchedLocations = [
-          pythonScriptPath,
-          path.join(process.cwd(), "scripts", "resume-parser", "resume_parser.py"),
-          path.join(process.cwd(), "..", "scripts", "resume-parser", "resume_parser.py"),
-        ];
-        
-        const errorMsg = 
-          `Resume parser script not found.\n\n` +
-          `Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n\n` +
-          `Project root detected: ${projectRoot}\n` +
-          `Current working directory: ${process.cwd()}\n\n` +
-          `Ensure the resume_parser.py script exists at:\n${pythonScriptPath}`;
-        
-        return reject(new Error(errorMsg));
+      if (!parserPath) {
+        return reject(new Error("Resume parser path is null"));
       }
 
-      console.log(`[Resume Parser] Script found. Executing...`);
+      if (devMode) {
+        console.log(`[Resume Parser] Parser: ${parserPath}`);
+        console.log(`[Resume Parser] File: ${filePath}`);
+      }
 
-      // Execute the Python script
-      const pythonProcess = spawn("python", [pythonScriptPath, filePath], {
-        timeout: 30000, // 30 second timeout
+      // Spawn Python process
+      const pythonExe = findPythonExecutable(projectRoot);
+      const PARSER_TIMEOUT = 30000; // 30 seconds
+
+      const pythonProcess = spawn(pythonExe, [parserPath, filePath], {
+        timeout: PARSER_TIMEOUT,
+        stdio: ["ignore", "pipe", "pipe"],
       });
 
       let stdout = "";
       let stderr = "";
 
+      // Capture stderr
+      pythonProcess.stderr.on("data", (data) => {
+        stderr += data.toString();
+        if (devMode) {
+          console.error("[Resume Parser] stderr:", data.toString());
+        }
+      });
+
+      // Capture stdout
       pythonProcess.stdout.on("data", (data) => {
         stdout += data.toString();
       });
 
-      pythonProcess.stderr.on("data", (data) => {
-        stderr += data.toString();
-        console.error("[Resume Parser] Python stderr:", data.toString());
-      });
-
-      pythonProcess.on("close", (code) => {
-        if (code !== 0) {
-          return reject(
-            new Error(
-              `Python script exited with code ${code}. Error: ${stderr}`
-            )
+      // Timeout handler
+      timeoutHandle = setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true;
+          pythonProcess.kill("SIGTERM");
+          console.error(
+            `[Resume Parser] Timeout after ${PARSER_TIMEOUT}ms, process killed`
           );
+          reject(new Error(`Resume parser timeout (${PARSER_TIMEOUT}ms)`));
         }
+      }, PARSER_TIMEOUT + 1000);
+
+      // Process close
+      pythonProcess.on("close", (code) => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (hasResolved) return;
+        hasResolved = true;
+
+        const duration = Date.now() - startTime;
 
         try {
-          // Parse the JSON output from Python script
+          if (!stdout) {
+            console.error("[Resume Parser] No output from Python");
+            if (devMode && stderr) {
+              console.error("[Resume Parser] stderr:", stderr);
+            }
+            return reject(new Error("Resume parser produced no output"));
+          }
+
+          // Parse JSON
           const result: ParsedResumeData = JSON.parse(stdout);
 
-          // Validate the result structure
+          // Validate structure
           if (
-            !result.skills ||
-            !result.education ||
+            !Array.isArray(result.skills) ||
+            !Array.isArray(result.education) ||
             typeof result.experience_months !== "number" ||
             typeof result.projects_count !== "number" ||
             typeof result.resume_completeness_score !== "number"
           ) {
-            return reject(
-              new Error("Invalid resume parser output format")
+            return reject(new Error("Invalid resume parser output format"));
+          }
+
+          if (devMode) {
+            console.log(
+              `[Resume Parser] Process completed in ${duration}ms (exit code ${code})`
             );
           }
 
           resolve(result);
         } catch (parseError) {
-          reject(
-            new Error(
-              `Failed to parse Python output: ${parseError instanceof Error ? parseError.message : String(parseError)}`
-            )
+          console.error(
+            "[Resume Parser] Failed to parse output:",
+            parseError instanceof Error ? parseError.message : String(parseError)
           );
+          if (devMode && stdout) {
+            console.error("[Resume Parser] stdout:", stdout.substring(0, 500));
+          }
+          reject(new Error("Failed to parse parser output"));
         }
       });
 
+      // Process error
       pythonProcess.on("error", (error) => {
-        reject(
-          new Error(
-            `Failed to spawn Python process: ${error.message}`
-          )
-        );
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (hasResolved) return;
+        hasResolved = true;
+
+        console.error("[Resume Parser] Failed to spawn process:", error.message);
+        reject(new Error(`Failed to spawn Python: ${error.message}`));
       });
     } catch (error) {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      console.error(
+        "[Resume Parser] Unexpected error:",
+        error instanceof Error ? error.message : String(error)
+      );
       reject(error);
     }
   });
 }
 
-/**
- * Safe wrapper for resume parsing with fallback values.
- * DEPRECATED: This function masks errors which leads to empty parsed data.
- * Use parseResume() directly in upload handlers and catch errors explicitly.
- * 
- * @deprecated Use parseResume() and handle errors at call site
- * @param fileBuffer - The resume file as a Buffer
- * @param fileName - Original filename
- * @returns Parsed resume data or default values
- */
-export async function parseResumeWithFallback(
-  fileBuffer: Buffer,
-  fileName: string
-): Promise<ParsedResumeData> {
-  // Always attempt to parse - let caller decide what to do with errors
-  return await parseResume(fileBuffer, fileName);
-}
-
 export default {
   parseResume,
-  parseResumeWithFallback,
+  getResumeParserPath,
+  logParserStatus,
 };

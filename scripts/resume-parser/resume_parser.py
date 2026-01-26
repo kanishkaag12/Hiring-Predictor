@@ -760,25 +760,62 @@ class ResumeParser:
         return json.dumps(self.parse(), indent=2)
 
 
-def parse_resume(file_path: str) -> Dict:
-    """Convenience function to parse a resume."""
-    parser = ResumeParser(file_path)
-    return parser.parse()
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python resume_parser.py <resume_file.pdf|resume_file.docx>", file=sys.stderr)
-        sys.exit(1)
-
-    file_path = sys.argv[1]
-
+def main():
+    """Main entry point for resume parser."""
+    # ====================
+    # DEFAULT RESPONSE (on any error)
+    # ====================
+    default_response = {
+        'skills': [],
+        'education': [],
+        'experience_months': 0,
+        'projects_count': 0,
+        'resume_completeness_score': 0
+    }
+    
     try:
-        result = parse_resume(file_path)
-        print(json.dumps(result))
-    except (FileNotFoundError, ImportError, ValueError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        # Validate arguments
+        if len(sys.argv) != 2:
+            # Print to stderr for debugging, return default JSON to stdout
+            print("ERROR: Usage: resume_parser.py <file_path>", file=sys.stderr)
+            print(json.dumps(default_response))
+            sys.exit(0)
+        
+        file_path = sys.argv[1]
+        
+        # Validate file exists
+        if not os.path.exists(file_path):
+            print(f"ERROR: File not found: {file_path}", file=sys.stderr)
+            print(json.dumps(default_response))
+            sys.exit(0)
+        
+        # Parse resume
+        try:
+            parser = ResumeParser(file_path)
+            result = parser.parse()
+            print(json.dumps(result))
+            sys.exit(0)
+        except Exception as parse_err:
+            print(f"ERROR: Resume parsing failed: {str(parse_err)}", file=sys.stderr)
+            print(json.dumps(default_response))
+            sys.exit(0)
+    
     except Exception as e:
-        print(f"An unexpected error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+        # Catch any unexpected errors and log to stderr
+        print(f"CRITICAL ERROR: {str(e)}", file=sys.stderr)
+        # Always return valid JSON to stdout, never crash
+        try:
+            print(json.dumps({
+                'skills': [],
+                'education': [],
+                'experience_months': 0,
+                'projects_count': 0,
+                'resume_completeness_score': 0
+            }))
+        except:
+            pass
+        sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
