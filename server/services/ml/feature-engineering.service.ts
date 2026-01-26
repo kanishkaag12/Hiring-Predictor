@@ -36,6 +36,29 @@ export interface FeatureVector {
 }
 
 /**
+ * Market + intent feature envelope for a role.
+ * Keeps the inputs explicit and deterministic.
+ */
+export interface RoleMarketFeatures {
+  market_demand_score: number; // 0-1
+  competition_score: number;   // 0-1
+  baseline_experience_months?: number; // optional role baseline for experience
+}
+
+/**
+ * Feature vector shape required by the prompt (strict ordering, fixed length).
+ */
+export interface CombinedFeatureVector {
+  skill_match_score: number;
+  experience_gap_score: number;
+  resume_completeness_score: number;
+  behavioral_intent_score: number;
+  market_demand_score: number;
+  competition_score: number;
+  _feature_names: string[];
+}
+
+/**
  * Education level to score mapping.
  * Maps degree types to normalized scores [0, 1].
  */
@@ -177,6 +200,20 @@ function normalizeProjects(projectsCount: number): number {
 }
 
 /**
+ * Normalize an experience shortfall relative to a role baseline into [0, 1].
+ *
+ * gap = clamp01(1 - (user_months / baseline_months))
+ * - If user meets/exceeds baseline, gap → 0 (no gap)
+ * - If user has 0 months, gap → 1 (full gap)
+ */
+function normalizeExperienceGap(userMonths: number, baselineMonths: number): number {
+  if (baselineMonths <= 0) return 0.0; // avoid division by zero, treat as no gap
+  const ratio = userMonths / baselineMonths;
+  const gap = 1 - ratio;
+  return Math.min(1.0, Math.max(0.0, gap));
+}
+
+/**
  * Normalize resume completeness score to [0, 1].
  * Handles both 0-100 and 0-1 ranges.
  * 
@@ -271,6 +308,54 @@ export function generateFeatureVector(
 }
 
 /**
+ * Generate the strict prompt-specified feature vectors (fixed length = 6).
+ *
+ * Inputs are pre-computed outputs (parsed resume, role skill match, market stats).
+ * No re-parsing, no re-matching, no ML inference.
+ */
+export function generateCombinedFeatureVectors(
+  parsedResume: ParsedResumeData,
+  roleSkillMatchScores: Record<string, number>,
+  roleMarketFeatures: Record<string, RoleMarketFeatures>,
+  behavioralIntentScore?: number,
+  defaultBaselineMonths = 24 // default baseline if a role-specific value is absent
+): Record<string, CombinedFeatureVector> {
+  const result: Record<string, CombinedFeatureVector> = {};
+
+  for (const [roleName, skillMatchScore] of Object.entries(roleSkillMatchScores)) {
+    const market = roleMarketFeatures[roleName] ?? {
+      market_demand_score: 0.5,
+      competition_score: 0.5,
+      baseline_experience_months: defaultBaselineMonths,
+    };
+
+    const baselineMonths = Math.max(0, market.baseline_experience_months ?? defaultBaselineMonths);
+    const experienceGap = normalizeExperienceGap(parsedResume.experience_months || 0, baselineMonths);
+
+    const featureNames = [
+      "skill_match_score",
+      "experience_gap_score",
+      "resume_completeness_score",
+      "behavioral_intent_score",
+      "market_demand_score",
+      "competition_score",
+    ];
+
+    result[roleName] = {
+      skill_match_score: Math.min(1.0, Math.max(0.0, skillMatchScore ?? 0)),
+      experience_gap_score: experienceGap,
+      resume_completeness_score: normalizeCompleteness(parsedResume.resume_completeness_score),
+      behavioral_intent_score: Math.min(1.0, Math.max(0.0, behavioralIntentScore ?? 0.0)),
+      market_demand_score: Math.min(1.0, Math.max(0.0, market.market_demand_score ?? 0.0)),
+      competition_score: Math.min(1.0, Math.max(0.0, market.competition_score ?? 0.0)),
+      _feature_names: featureNames,
+    };
+  }
+
+  return result;
+}
+
+/**
  * Generate feature vectors for multiple roles.
  * 
  * @param roleSkillMatches - Map of role_name → skill_match_score (0-1)
@@ -349,4 +434,5 @@ export default {
   generateFeatureVectors,
   featureVectorToArray,
   featureVectorsToArrays,
+  generateCombinedFeatureVectors,
 };

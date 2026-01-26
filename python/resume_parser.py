@@ -24,41 +24,41 @@ try:
 except ImportError:
     HAS_DOCX = False
 
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
 
 class ResumeParser:
     """Extract structured data from resume files."""
     
-    # Common skill keywords organized by category
-    TECHNICAL_SKILLS = {
-        'languages': [
-            'python', 'javascript', 'java', 'c++', 'c#', 'ruby', 'php', 'go', 'rust',
-            'kotlin', 'swift', 'typescript', 'scala', 'perl', 'r', 'matlab', 'sql',
-            'html', 'css', 'xml', 'json', 'yaml', 'groovy', 'haskell', 'lisp'
-        ],
-        'frameworks': [
-            'react', 'angular', 'vue', 'django', 'flask', 'fastapi', 'express', 'nodejs',
-            'spring', 'hibernate', 'dotnet', 'asp.net', 'tensorflow', 'pytorch', 'keras',
-            'sklearn', 'pandas', 'numpy', 'spark', 'hadoop', 'kafka', 'rabbitmq'
-        ],
-        'databases': [
-            'postgres', 'postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch',
-            'cassandra', 'dynamodb', 'oracle', 'sqlserver', 'firestore', 'dynamodb',
-            'mariadb', 'neo4j', 'couchdb', 'influxdb'
-        ],
-        'devops': [
-            'docker', 'kubernetes', 'jenkins', 'gitlab', 'github', 'git', 'aws',
-            'azure', 'gcp', 'terraform', 'ansible', 'docker-compose', 'ci/cd',
-            'linux', 'unix', 'bash', 'shell', 'nginx', 'apache'
-        ],
-        'tools': [
-            'jira', 'confluence', 'slack', 'trello', 'asana', 'github', 'gitlab',
-            'bitbucket', 'svn', 'maven', 'gradle', 'npm', 'pip', 'virtualenv'
-        ],
-        'ml': [
-            'machine learning', 'deep learning', 'nlp', 'computer vision', 'cv',
-            'reinforcement learning', 'neural network', 'neural networks'
-        ]
-    }
+    # Flattened list of all known skills for easier extraction
+    ALL_SKILLS = [
+        # Programming languages
+        'python', 'javascript', 'java', 'c++', 'c#', 'ruby', 'php', 'go', 'rust',
+        'kotlin', 'swift', 'typescript', 'scala', 'perl', 'r', 'matlab', 'sql',
+        'html', 'css', 'xml', 'json', 'yaml', 'groovy', 'haskell', 'lisp',
+        # Frameworks & libraries
+        'react', 'angular', 'vue', 'django', 'flask', 'fastapi', 'express', 'nodejs',
+        'spring', 'hibernate', 'dotnet', 'asp.net', 'tensorflow', 'pytorch', 'keras',
+        'sklearn', 'pandas', 'numpy', 'spark', 'hadoop', 'kafka', 'rabbitmq',
+        # Databases
+        'postgres', 'postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch',
+        'cassandra', 'dynamodb', 'oracle', 'sqlserver', 'firestore',
+        'mariadb', 'neo4j', 'couchdb', 'influxdb',
+        # DevOps & cloud
+        'docker', 'kubernetes', 'jenkins', 'gitlab', 'github', 'git', 'aws',
+        'azure', 'gcp', 'terraform', 'ansible', 'docker-compose', 'ci/cd',
+        'linux', 'unix', 'bash', 'shell', 'nginx', 'apache',
+        # Tools
+        'jira', 'confluence', 'slack', 'trello', 'asana',
+        'bitbucket', 'svn', 'maven', 'gradle', 'npm', 'pip', 'virtualenv',
+        # ML & AI
+        'machine learning', 'deep learning', 'nlp', 'computer vision', 'cv',
+        'reinforcement learning', 'neural network', 'neural networks'
+    ]
     
     # Education keywords
     EDUCATION_KEYWORDS = {
@@ -87,22 +87,47 @@ class ResumeParser:
         
     def extract_text(self) -> str:
         """Extract text from PDF or DOCX file."""
+        file_ext = self.file_path.lower()
+        
+        # Try PDF extraction first if it's a PDF
+        if file_ext.endswith('.pdf'):
+            # Try pdfplumber first (most reliable)
+            if HAS_PDFPLUMBER:
+                result = self._extract_from_pdf_pdfplumber()
+                if result:
+                    return result
+            
+            # Try PyPDF2 as fallback
+            if HAS_PYPDF2:
+                result = self._extract_from_pdf()
+                if result:
+                    return result
+        
+        # Try DOCX extraction if it's a docx file
+        if file_ext.endswith(('.docx', '.doc')):
+            result = self._extract_from_docx()
+            if result:
+                return result
+        
+        raise ValueError(f"Could not extract text from file: {self.file_path}")
+    
+    def _extract_from_pdf_pdfplumber(self) -> str:
+        """Extract text from PDF using pdfplumber (most reliable)."""
         try:
-            if self.file_path.lower().endswith('.pdf'):
-                return self._extract_from_pdf()
-            elif self.file_path.lower().endswith(('.docx', '.doc')):
-                return self._extract_from_docx()
-            else:
-                # Try both methods
-                text = self._extract_from_pdf() or self._extract_from_docx()
-                if text:
-                    return text
-                raise ValueError(f"Unsupported file format: {self.file_path}")
+            import pdfplumber
+            text = ""
+            with pdfplumber.open(self.file_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+            return text
         except Exception as e:
-            raise Exception(f"Failed to extract text from file: {str(e)}")
+            print(f"Warning: pdfplumber extraction failed: {e}", file=sys.stderr)
+            return ""
     
     def _extract_from_pdf(self) -> str:
-        """Extract text from PDF."""
+        """Extract text from PDF using PyPDF2."""
         if not HAS_PYPDF2:
             return ""
         
@@ -111,10 +136,12 @@ class ResumeParser:
             with open(self.file_path, 'rb') as file:
                 reader = PyPDF2.PdfReader(file)
                 for page in reader.pages:
-                    text += page.extract_text() + "\n"
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
             return text
         except Exception as e:
-            print(f"Warning: Could not extract from PDF: {e}", file=sys.stderr)
+            print(f"Warning: PyPDF2 extraction failed: {e}", file=sys.stderr)
             return ""
     
     def _extract_from_docx(self) -> str:
@@ -125,34 +152,14 @@ class ResumeParser:
         try:
             doc = Document(self.file_path)
             text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-            return text
+            return text if text else ""
         except Exception as e:
-            print(f"Warning: Could not extract from DOCX: {e}", file=sys.stderr)
+            print(f"Warning: DOCX extraction failed: {e}", file=sys.stderr)
             return ""
     
-    def extract_skills(self) -> List[str]:
-        """Extract technical skills from resume text."""
-        skills = set()
-        text_lower = self.text_content.lower()
-        
-        # Look for "Skills" section and extract nearby words
-        skills_section_pattern = r'skills?\s*:?\s*(.*?)(?:experience|education|projects|certification|$)'
-        skills_matches = re.findall(skills_section_pattern, text_lower, re.IGNORECASE | re.DOTALL)
-        
-        if skills_matches:
-            skills_text = " ".join(skills_matches)
-        else:
-            skills_text = text_lower
-        
-        # Search for known skills
-        for category, skill_list in self.TECHNICAL_SKILLS.items():
-            for skill in skill_list:
-                # Use word boundaries to avoid partial matches
-                pattern = r'\b' + re.escape(skill) + r'\b'
-                if re.search(pattern, skills_text):
-                    skills.add(skill.title())
-        
-        return sorted(list(skills))
+    def extract_skills(self) -> Tuple[List[str], bool]:
+        """Extract skills using multi-strategy approach with warning flag."""
+        return extract_skills_multi(self.text_content, self.ALL_SKILLS)
     
     def extract_education(self) -> List[Dict[str, str]]:
         """Extract education information from resume."""
@@ -285,7 +292,7 @@ class ResumeParser:
             self.text_content = self.raw_text.strip()
             
             # Extract components
-            skills = self.extract_skills()
+            skills, skills_warning = self.extract_skills()
             education = self.extract_education()
             experience_months = self.extract_experience_months()
             projects = self.count_projects()
@@ -296,10 +303,82 @@ class ResumeParser:
                 'education': education,
                 'experience_months': experience_months,
                 'projects_count': projects,
-                'resume_completeness_score': completeness
+                'resume_completeness_score': completeness,
+                'skills_extraction_warning': skills_warning
             }
         except Exception as e:
             raise Exception(f"Resume parsing failed: {str(e)}")
+
+
+def log_dev(msg: str):
+    if os.getenv("NODE_ENV", "development") != "production":
+        print(f"DEBUG: {msg}", file=sys.stderr)
+
+
+def normalize_skill(skill: str) -> str:
+    """Normalize a skill string."""
+    return skill.strip().replace("\n", " ").strip().title()
+
+
+def extract_skills_multi(text: str, all_skills: List[str]) -> Tuple[List[str], bool]:
+    """
+    Multi-strategy skill extraction with multiple fallback approaches.
+    
+    Strategies:
+    a) Section-based: Find skills in dedicated sections
+    b) Keyword matching: Search for known skills anywhere
+    c) Sentence fallback: Last resort extraction from sentences
+    """
+    skills_found = set()
+    warning = False
+    lower_text = text.lower()
+    
+    section_headers = ["skills", "technical skills", "core competencies", "tools", "technologies", "expertise"]
+    
+    # a) Section-based parsing
+    section_pattern = r"(?:^|\n)(?:" + "|".join([re.escape(h) for h in section_headers]) + r"):?[\t ]*(.*?)(?=\n\s*[A-Z][A-Za-z ]{2,}:|$)"
+    sections = re.findall(section_pattern, text, flags=re.IGNORECASE | re.DOTALL)
+    
+    if sections:
+        log_dev(f"Skill sections found: {len(sections)}")
+        for sec in sections:
+            # Split by bullets, dashes, commas, or newlines
+            parts = re.split(r"[\n•\-*,;]", sec)
+            for p in parts:
+                p_clean = p.strip().lower()
+                # Check if part contains any known skill
+                for skill in all_skills:
+                    if re.search(r"\b" + re.escape(skill.lower()) + r"\b", p_clean):
+                        skills_found.add(normalize_skill(skill))
+    
+    # b) Direct keyword matching anywhere in text
+    keyword_count = 0
+    for skill in all_skills:
+        if re.search(r"\b" + re.escape(skill.lower()) + r"\b", lower_text):
+            skills_found.add(normalize_skill(skill))
+            keyword_count += 1
+    
+    if keyword_count > 0:
+        log_dev(f"Keywords found: {keyword_count}")
+    
+    # c) Sentence-based fallback (if nothing found yet)
+    if not skills_found and len(text) > 100:
+        log_dev("Using sentence-based fallback")
+        sentences = re.split(r"[\.!?]", text)
+        for sentence in sentences:
+            for skill in all_skills:
+                if re.search(r"\b" + re.escape(skill.lower()) + r"\b", sentence.lower()):
+                    skills_found.add(normalize_skill(skill))
+    
+    # Convert set to sorted list
+    skills_list = sorted(list(skills_found))
+    
+    # Set warning if no skills found
+    if not skills_list:
+        warning = True
+    
+    log_dev(f"Extracted {len(skills_list)} unique skills")
+    return skills_list, warning
 
 
 def main():
@@ -312,7 +391,8 @@ def main():
         'education': [],
         'experience_months': 0,
         'projects_count': 0,
-        'resume_completeness_score': 0
+        'resume_completeness_score': 0,
+        'skills_extraction_warning': True
     }
     
     try:
@@ -352,7 +432,8 @@ def main():
                 'education': [],
                 'experience_months': 0,
                 'projects_count': 0,
-                'resume_completeness_score': 0
+                'resume_completeness_score': 0,
+                'skills_extraction_warning': True
             }))
         except:
             pass
