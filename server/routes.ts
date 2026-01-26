@@ -2,7 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
-import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
+import { fetchJobs, aggregateMarketStats, UserContext } from "./jobs/job.service";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
@@ -11,11 +11,9 @@ import { AIService } from "./services/ai.service";
 import { AISimulationService } from "./services/ai-simulation.service";
 import { SkillRoleMappingService } from "./services/skill-role-mapping.service";
 import { getRolePredictor } from "./services/ml/role-predictor.service";
-import { findPythonExecutable, type ParsedResumeData } from "./services/resume-parser.service";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { spawn } from "child_process";
 
 // Configure multer for PDF uploads
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -172,19 +170,6 @@ function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
   res.status(401).json({ message: "Unauthorized" });
 }
 
-// Development-only: auth middleware that allows bypass for testing
-function ensureAuthenticatedOrDevBypass(req: Request, res: Response, next: NextFunction) {
-  // In development, allow requests without auth (bypass will use test user)
-  if (process.env.NODE_ENV === "development") {
-    return next(); // Continue to handler, which will use test user if no req.user
-  }
-  // In production, enforce authentication
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.status(401).json({ message: "Unauthorized" });
-}
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -207,7 +192,8 @@ export async function registerRoutes(
         companySize: req.query.companySize as string,
         workType: req.query.workType as any
       };
-      const jobs = await fetchJobs(filters);
+      const userCtx = await buildUserContext(req);
+      const jobs = await fetchJobs(filters, userCtx || undefined);
       res.json(jobs);
     } catch (error) {
       console.error("Error finding jobs:", error);
@@ -218,6 +204,9 @@ export async function registerRoutes(
   // ✅ SINGLE JOB
   app.get("/api/jobs/:id", async (req, res) => {
     const { id } = req.params;
+    const userCtx = await buildUserContext(req);
+    const jobs = await fetchJobs({}, userCtx || undefined);
+    const job = jobs.find(j => j.id === id);
     try {
       // Improved: Use the job service to fetch only the specific job if possible
       // For now, fetchJobs is the only entry point, but we should minimize impact
@@ -376,6 +365,112 @@ export async function registerRoutes(
     });
   });
 
+  // 📊 USER DASHBOARD STATS - For Quick Stats Panel
+  app.get("/api/dashboard/stats", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const user = await storage.getUser(userId);
+      const favs = await storage.getFavourites(userId);
+      
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Calculate profile score (0-100)
+      let profileScore = 0;
+      profileScore += user.name ? 10 : 0;
+      profileScore += user.linkedinUrl ? 15 : 0;
+      profileScore += user.githubUrl ? 15 : 0;
+      profileScore += user.resumeUrl ? 20 : 0;
+      profileScore += user.resumeScore ? Math.min(40, user.resumeScore) : 0;
+      
+      const skills = await storage.getSkills(userId);
+      profileScore += Math.min(skills.length * 5, 20); // Max 20 points for skills
+      
+      const projects = await storage.getProjects(userId);
+      profileScore += Math.min(projects.length * 5, 20); // Max 20 points for projects
+
+      res.json({
+        profileScore: Math.min(100, profileScore),
+        jobsApplied: favs.length,
+        interviews: 0, // TODO: Add interviews tracking to schema
+        favoriteCount: favs.length
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // 📋 USER RECENT ACTIVITY - For Activity Panel
+  app.get("/api/dashboard/activity", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const activities = [];
+
+      // Recent resume update
+      if (user.resumeUploadedAt) {
+        activities.push({
+          type: "resume",
+          title: "Resume updated",
+          description: user.resumeName || "Resume uploaded",
+          timestamp: new Date(user.resumeUploadedAt),
+          icon: "📄"
+        });
+      }
+
+      // Skills added
+      const skills = await storage.getSkills(userId);
+      if (skills.length > 0 && Array.isArray(skills)) {
+        activities.push({
+          type: "skills",
+          title: `Added ${skills.length} skill${skills.length > 1 ? 's' : ''}`,
+          description: skills.slice(0, 3).map((s: any) => s.name).join(", "),
+          timestamp: new Date(), // TODO: Add created_at to skills schema
+          icon: "🎯"
+        });
+      }
+
+      // Projects added
+      const projects = await storage.getProjects(userId);
+      if (projects.length > 0 && Array.isArray(projects)) {
+        activities.push({
+          type: "projects",
+          title: `Created ${projects.length} project${projects.length > 1 ? 's' : ''}`,
+          description: projects[0]?.title || "Project added",
+          timestamp: new Date(), // TODO: Add created_at to projects schema
+          icon: "💼"
+        });
+      }
+
+      // Favorites added
+      const favs = await storage.getFavourites(userId);
+      if (favs.length > 0 && Array.isArray(favs)) {
+        // Get the most recent favorite (assuming they're sorted)
+        const recentFav = favs[0];
+        activities.push({
+          type: "favorite",
+          title: "Added job to favorites",
+          description: recentFav.jobId || "Job saved",
+          timestamp: new Date(recentFav.savedAt || new Date()),
+          icon: "⭐"
+        });
+      }
+
+      // Sort by timestamp (most recent first) and limit to 5
+      const sortedActivities = activities
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, 5);
+
+      res.json(sortedActivities);
+    } catch (error) {
+      console.error("Error fetching activity:", error);
+      res.status(500).json({ error: "Failed to fetch activity" });
+    }
+  });
+
   // 🌍 SOCIALS & RESUME
   app.put("/api/profile/linkedin", ensureAuthenticated, async (req, res) => {
     const userId = (req.user as User).id;
@@ -422,13 +517,13 @@ export async function registerRoutes(
 
   app.post("/api/profile/resume", ensureAuthenticated, upload.single("resume"), async (req, res) => {
     const userId = (req.user as User).id;
-    const devMode = process.env.NODE_ENV !== "production";
-
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
     try {
+      // Import resume parser service
+      const { parseResumeWithFallback } = await import("./services/resume-parser.service");
       // ====================
       // 1. IMPORT & INITIALIZE
       // ====================
@@ -449,23 +544,14 @@ export async function registerRoutes(
         });
       }
 
+      // Read the uploaded file from disk to ensure a valid Buffer
+      const savedFilePath = path.join(uploadDir, req.file.filename);
       const fileBuffer = fs.readFileSync(savedFilePath);
 
-      // ====================
-      // 2. EVALUATE RESUME QUALITY
-      // ====================
-      let resumeScore = 0;
-      try {
-        resumeScore = await evaluateResumeQuality(
-          fileBuffer,
-          req.file.originalname,
-          (req.user as User).userType ?? undefined
-        );
-      } catch (scoreError) {
-        console.error("[Resume Upload] Resume quality evaluation failed:", scoreError);
-        resumeScore = 0; // Continue with default score
-      }
+      // Evaluate resume quality using AI-based heuristics
+      const resumeScore = await evaluateResumeQuality(fileBuffer, req.file.originalname, (req.user as User).userType ?? undefined);
 
+      let parsedResume;
       // ====================
       // 3. PARSE RESUME WITH RESILIENT ERROR HANDLING
       // ====================
@@ -479,9 +565,17 @@ export async function registerRoutes(
 
       let parsingStatus = "SUCCESS";
       let parsingError: string | null = null;
-      let parsingDuration = 0;
+      const parsingAttemptedAt = new Date();
 
+      // Attempt to parse the resume
       try {
+        parsedResume = await parseResumeWithFallback(
+          fileBuffer,
+          req.file.originalname
+        );
+        // Validate that we got actual data, not just empty defaults
+        if (!parsedResume.skills || parsedResume.skills.length === 0) {
+          parsingError = "Resume parsing completed but no skills were extracted. The resume may not contain enough structured content.";
         const parseStartTime = Date.now();
 
         parsedResume = await parseResumeFunction(
@@ -515,8 +609,8 @@ export async function registerRoutes(
           }
         }
       } catch (parseError) {
-        parsingStatus = "FAILED";
         parsingError = parseError instanceof Error ? parseError.message : String(parseError);
+        // Provide a fallback result structure but mark it as an error
 
         console.error(`[Resume Upload] Parsing failed: ${parsingError}`);
 
@@ -530,6 +624,7 @@ export async function registerRoutes(
         };
       }
 
+      // Update user with resume metadata and parsed data
       // ====================
       // 4. UPDATE USER WITH PARSED DATA & STATUS
       // ====================
@@ -538,7 +633,7 @@ export async function registerRoutes(
       const updateData: Partial<User> = {
         resumeUrl: `/uploads/${req.file.filename}`,
         resumeName: req.file.originalname,
-        resumeUploadedAt: resumeUploadedAt,
+        resumeUploadedAt: new Date(),
         resumeScore: resumeScore,
         // Add parsed resume data
         resumeParsedSkills: parsedResume.skills,
@@ -546,59 +641,57 @@ export async function registerRoutes(
         resumeExperienceMonths: parsedResume.experience_months,
         resumeProjectsCount: parsedResume.projects_count,
         resumeCompletenessScore: String(parsedResume.resume_completeness_score),
-        // Track parsing status and errors (dev mode only)
-        resumeParsingError: devMode && parsingError ? parsingError : null,
-        resumeParsingAttemptedAt: resumeUploadedAt,
+        // Track parsing status
+        resumeParsingError: parsingError,
+        resumeParsingAttemptedAt: parsingAttemptedAt,
       };
 
-      // Add custom field for parsing status if schema supports it
-      // (This will be stored in database if column exists)
-      const updateWithStatus = {
-        ...updateData,
-        resumeParsingStatus: parsingStatus,
-      };
+      const updated = await storage.updateUser(userId, updateData);
 
-      try {
-        const updated = await storage.updateUser(userId, updateWithStatus);
-
-        // ====================
-        // 5. CALCULATE ROLE MATCHES
-        // ====================
-        const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills);
-
-        // ====================
-        // 6. RETURN RESPONSE
-        // ====================
-        res.json({
-          ...updated,
-          parsedResume: {
-            skills: parsedResume.skills,
-            education: parsedResume.education,
-            experience_months: parsedResume.experience_months,
-            projects_count: parsedResume.projects_count,
-            resume_completeness_score: parsedResume.resume_completeness_score,
-          },
-          parsingStatus,
-          parsingError: devMode ? parsingError : null,
-          parsingDuration,
-          roleSkillMatches,
-        });
-      } catch (updateError) {
-        console.error("[Resume Upload] Failed to update user with parsed resume:", updateError);
-        // Return parsing result even if update fails (don't crash)
-        res.json({
-          message: "Resume parsed but failed to save",
-          parsedResume,
-          parsingStatus,
-          parsingError: devMode ? parsingError : null,
-          parsingDuration,
-        });
+      // 🔄 SYNC PARSED SKILLS TO SKILLS TABLE
+      // This ensures the probability engine uses the latest resume skills
+      if (parsedResume.skills && parsedResume.skills.length > 0) {
+        // Get existing skills to avoid duplicates
+        const existingSkills = await storage.getSkills(userId);
+        const existingSkillNames = new Set(existingSkills.map(s => s.name.toLowerCase()));
+        
+        // Add new skills from resume that don't already exist
+        const newSkillsToAdd = parsedResume.skills.filter(
+          skillName => !existingSkillNames.has(skillName.toLowerCase())
+        );
+        
+        for (const skillName of newSkillsToAdd) {
+          await storage.addSkill({
+            userId: userId,
+            name: skillName,
+            level: "Intermediate" // Beginner | Intermediate | Advanced
+          });
+        }
+        
+        console.log(`✅ Synced ${newSkillsToAdd.length} new skills from resume to skills table`);
       }
+
+      // Calculate role skill match scores from parsed skills
+      const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills);
+
+      // Return response with parsed data and error status if applicable
+      res.json({
+        ...updated,
+        parsedResume: {
+          skills: parsedResume.skills,
+          education: parsedResume.education,
+          experience_months: parsedResume.experience_months,
+          projects_count: parsedResume.projects_count,
+          resume_completeness_score: parsedResume.resume_completeness_score,
+        },
+        parsingError,
+        roleSkillMatches,
+      });
     } catch (error) {
-      console.error("[Resume Upload] Unexpected error:", error);
+      console.error("Resume upload error:", error);
       res.status(500).json({
         message: "Error processing resume",
-        error: devMode ? (error instanceof Error ? error.message : String(error)) : "Internal server error",
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   });
@@ -1105,6 +1198,11 @@ export async function registerRoutes(
     }
   });
 
+  // 🎯 JOB-SPECIFIC WHAT-IF SIMULATOR (for Analyze My Chances modal)
+  app.post("/api/ai/simulate-for-job", ensureAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as User).id;
+      const { jobTitle, jobDescription, jobRequirements, query } = req.body;
   // ============================================================================
   // DEVELOPMENT/TEST ENDPOINTS (Prompt 5 Verification)
   // ============================================================================
@@ -1233,207 +1331,30 @@ export async function registerRoutes(
 
     const shortlistModelPath = process.env.SHORTLIST_MODEL_PATH || path.join(process.cwd(), "models", "shortlist_model.pkl");
 
-    try {
-      // ====================
-      // 1. VALIDATE MODEL AVAILABILITY
-      // ====================
-      if (!fs.existsSync(shortlistModelPath)) {
-        console.error(`[ML-TEST] Model file missing at: ${shortlistModelPath}`);
-        return res.status(500).json({
-          shortlist_probability: null,
-          status: "error",
-          message: "ML inference failed – see server logs",
-          detail: `Model file not found at ${shortlistModelPath}`,
-        });
+      console.log("[Simulator Route] Received query:", query);
+      console.log("[Simulator Route] Query type:", typeof query);
+      console.log("[Simulator Route] Query length:", query ? query.length : 0);
+
+      if (!jobTitle || !jobDescription) {
+        return res.status(400).json({ message: "jobTitle and jobDescription are required" });
       }
 
-      const user = await storage.getUser(testUserId);
-      if (!user) {
-        return res.status(404).json({ message: "Test user not found" });
-      }
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
 
-      // Build features
-      const parsedResume: any = {
-        skills: user.resumeParsedSkills || [],
-        education: user.resumeEducation || [],
-        experience_months: user.resumeExperienceMonths || 0,
-        projects_count: user.resumeProjectsCount || 0,
-        resume_completeness_score: user.resumeCompletenessScore || 0,
-      };
+      const skills = await storage.getSkills(userId);
+      const projects = await storage.getProjects(userId);
+      const experiences = await storage.getExperiences(userId);
+      const interestRoles = user.interestRoles || [];
 
-      const roleSkillMatchesRaw = SkillRoleMappingService.calculateAllRoleMatches(parsedResume.skills || []);
-      const roleSkillMatchScores: Record<string, number> = {};
-      for (const [r, data] of Object.entries(roleSkillMatchesRaw)) {
-        roleSkillMatchScores[r] = (data as any).score ?? 0;
-      }
-
-      const roleMarketFeatures: Record<string, any> = {
-        [roleCategory]: {
-          market_demand_score: 0.7,
-          competition_score: 0.5,
-          baseline_experience_months: 24,
-        },
-      };
-
-      const { generateCombinedFeatureVectors } = await import("./services/ml/feature-engineering.service");
-      const featureVectors = generateCombinedFeatureVectors(
-        parsedResume,
-        roleSkillMatchScores,
-        roleMarketFeatures,
-        undefined
-      );
-
-      const fv = featureVectors[roleCategory];
-      if (!fv) {
-        return res.status(400).json({
-          message: "Could not build feature vector for role",
-          detail: `Role '${roleCategory}' not found`,
-        });
-      }
-
-      // ====================
-      // 2. DEFENSIVE FEATURE VALIDATION
-      // ====================
-      const featureNames = [
-        "skill_match_score",
-        "experience_gap_score",
-        "resume_completeness_score",
-        "behavioral_intent_score",
-        "market_demand_score",
-        "competition_score",
-      ];
-
-      const rawFeatures = [
-        fv.skill_match_score,
-        fv.experience_gap_score,
-        fv.resume_completeness_score,
-        fv.behavioral_intent_score,
-        fv.market_demand_score,
-        fv.competition_score,
-      ];
-
-      // Validate and convert each feature to a safe number (0-1)
-      const featureArray: number[] = [];
-      for (let i = 0; i < featureNames.length; i++) {
-        const featureName = featureNames[i];
-        let value = rawFeatures[i];
-
-        // Convert string numbers to float
-        if (typeof value === "string") {
-          value = parseFloat(value);
-        }
-
-        // Replace undefined/null/NaN with safe default
-        if (value === null || value === undefined || isNaN(value)) {
-          console.warn(`[ML-TEST] Feature '${featureName}' was null/undefined/NaN, defaulting to 0.0`);
-          value = 0.0;
-        }
-
-        // Clamp to [0, 1] range
-        if (typeof value === "number") {
-          if (value < 0 || value > 1) {
-            console.warn(`[ML-TEST] Feature '${featureName}' is out of range [0,1]: ${value}, clamping`);
-            value = Math.max(0, Math.min(1, value));
-          }
-        } else {
-          console.warn(`[ML-TEST] Feature '${featureName}' is not a number: ${typeof value}, defaulting to 0.0`);
-          value = 0.0;
-        }
-
-        featureArray.push(value);
-      }
-
-      // Log feature vector for debugging
-      console.log(`[ML-TEST] Feature vector for role '${roleCategory}':`, {
-        features: featureArray,
-        feature_names: featureNames,
-        model_path: shortlistModelPath,
-      });
-
-      const pythonScript = path.join(process.cwd(), "scripts", "ml-training", "run_inference.py");
-      if (!fs.existsSync(pythonScript)) {
-        console.error(`[ML-TEST] Inference script not found at: ${pythonScript}`);
-        return res.status(500).json({
-          shortlist_probability: null,
-          status: "error",
-          message: "ML inference failed – see server logs",
-        });
-      }
-
-      const payload = JSON.stringify({ features: featureArray, feature_names: featureNames });
-
-      // Find the correct Python executable from .venv
-      const projectRoot = path.dirname(process.cwd()); // Go up to outer root
-      const pythonExe = findPythonExecutable(projectRoot);
-
-      // ====================
-      // 3. SAFE PYTHON EXECUTION WITH ERROR HANDLING
-      // ====================
-      let hasResponded = false; // Guard against multiple responses
-
-      const py = spawn(pythonExe, [pythonScript, shortlistModelPath]);
-      let stdout = "";
-      let stderr = "";
-      let processError: string | null = null;
-
-      // Handle process-level errors
-      py.on("error", (err) => {
-        processError = err.message;
-        console.error(`[ML-TEST] Python process error: ${err.message}`);
-        if (!hasResponded) {
-          hasResponded = true;
-          return res.status(500).json({
-            shortlist_probability: null,
-            status: "error",
-            message: "ML inference failed – see server logs",
-          });
-        }
-      });
-
-      // Capture output
-      py.stdout.on("data", (d) => {
-        stdout += d.toString();
-      });
-
-      py.stderr.on("data", (d) => {
-        stderr += d.toString();
-      });
-
-      // Write input and close stdin
-      try {
-        py.stdin.write(payload);
-        py.stdin.end();
-      } catch (err) {
-        console.error(`[ML-TEST] Failed to write to Python stdin: ${err instanceof Error ? err.message : String(err)}`);
-        if (!hasResponded) {
-          hasResponded = true;
-          return res.status(500).json({
-            shortlist_probability: null,
-            status: "error",
-            message: "ML inference failed – see server logs",
-          });
-        }
-      }
-
-      // Handle process close
-      py.on("close", (code) => {
-        if (hasResponded) return; // Already sent response
-
-        // Check for non-zero exit code
-        if (code !== 0) {
-          console.error(`[ML-TEST] Python process exited with code ${code}`);
-          console.error(`[ML-TEST] stderr: ${stderr}`);
-          console.error(`[ML-TEST] stdout: ${stdout}`);
-          hasResponded = true;
-          return res.status(500).json({
-            shortlist_probability: null,
-            status: "error",
-            message: "ML inference failed – see server logs",
-          });
-        }
-
-        // Parse Python output
+      // Get resume text if uploaded
+      let resumeText: string | undefined;
+      if (user.resumeUrl) {
         try {
+          const resumePath = path.join(process.cwd(), "uploads", path.basename(user.resumeUrl));
+          if (fs.existsSync(resumePath)) {
+            resumeText = fs.readFileSync(resumePath, "utf-8").substring(0, 2000);
+          }
           if (!stdout) {
             console.error(`[ML-TEST] Python script produced no output`);
             hasResponded = true;
@@ -1727,10 +1648,7 @@ export async function registerRoutes(
             _note: "Probabilities are derived from the trained shortlist model; no raw weights exposed.",
           });
         } catch (err) {
-          return res.status(500).json({
-            message: "Failed to parse inference output",
-            detail: stdout || String(err),
-          });
+          console.warn("Could not read resume file:", err);
         }
       });
     } catch (error) {
@@ -1806,24 +1724,22 @@ export async function registerRoutes(
         roleSkillMatchScores[r] = (data as any).score ?? 0;
       }
 
-      // Market features placeholder
-      const roleMarketFeatures: Record<string, any> = {
-        [roleCategory]: {
-          market_demand_score: 0.7,
-          competition_score: 0.5,
-          baseline_experience_months: 24,
-        },
-      };
-
-      // Generate engineered features for this role
-      const { generateCombinedFeatureVectors } = await import("./services/ml/feature-engineering.service");
-      const featureVectors = generateCombinedFeatureVectors(
-        parsedResume,
-        roleSkillMatchScores,
-        roleMarketFeatures,
-        undefined
+      // Use the job-specific what-if simulator
+      const { JobWhatIfSimulator } = await import("./services/job-what-if-simulator");
+      const simulation = await JobWhatIfSimulator.simulateForJob(
+        jobTitle,
+        jobDescription,
+        jobRequirements || [],
+        query || "",
+        user,
+        skills,
+        projects,
+        experiences,
+        interestRoles,
+        resumeText
       );
 
+      res.json(simulation);
       const fv = featureVectors[roleCategory];
       if (!fv) {
         return res.status(400).json({
@@ -2051,15 +1967,43 @@ export async function registerRoutes(
         }
       });
     } catch (error) {
-      console.error("[ML] Unexpected error in /api/ml/shortlist:", error);
-      return res.status(500).json({
-        shortlist_probability: null,
-        status: "error",
-        message: "ML inference failed – see server logs",
-        detail: error instanceof Error ? error.message : String(error),
+      console.error("Error in Job What-If Simulator:", error);
+      res.status(500).json({
+        message: "Failed to simulate job-specific improvements",
+        error: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
 
+  // Register analysis routes
+  const analysisRouter = await import("./analysis.routes");
+  app.use(analysisRouter.default);
+
   return httpServer;
+}
+
+/**
+ * Build user context (user + skills + projects + experiences)
+ * Returns null if unauthenticated
+ */
+async function buildUserContext(req: Request): Promise<UserContext | null> {
+  const authUser = req.user as User | undefined;
+  if (!authUser) return null;
+
+  const userId = authUser.id;
+  const [user, skills, projects, experiences] = await Promise.all([
+    storage.getUser(userId),
+    storage.getSkills(userId),
+    storage.getProjects(userId),
+    storage.getExperiences(userId)
+  ]);
+
+  if (!user) return null;
+
+  return {
+    user,
+    skills,
+    projects,
+    experiences
+  };
 }

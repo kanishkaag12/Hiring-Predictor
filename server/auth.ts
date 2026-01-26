@@ -3,7 +3,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { pool, storage, isDatabaseHealthy } from "./storage";
+import { pool, storage } from "./storage";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { User as UserType, insertUserSchema } from "@shared/schema";
@@ -111,6 +111,7 @@ export function setupAuth(app: Express) {
       async (email, password, done) => {
         try {
           console.log("[AUTH] Attempting login for:", email);
+          const user = await storage.getUserByEmail(email);
 
           // Attempt to fetch user (catch DB errors directly)
           let user;
@@ -169,7 +170,7 @@ export function setupAuth(app: Express) {
       }
       done(null, user);
     } catch (err) {
-      console.warn("[AUTH] Deserialize user error for id:", id, err);
+      console.warn("Deserialize user error for id:", id, err);
       done(null, false);
     }
   });
@@ -177,6 +178,7 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       console.log("[REGISTER] Data received:", { ...req.body, password: "[REDACTED]" });
+      
 
       const result = insertUserSchema.safeParse(req.body);
       if (!result.success) {
@@ -186,6 +188,7 @@ export function setupAuth(app: Express) {
 
       const { email, password } = result.data;
 
+      const existingUser = await storage.getUserByEmail(email);
       let existingUser;
       try {
         existingUser = await storage.getUserByEmail(email);
@@ -199,17 +202,11 @@ export function setupAuth(app: Express) {
         return res.status(400).send("User already exists");
       }
 
-      let user;
-      try {
-        const hashedPassword = await hashPassword(password);
-        user = await storage.createUser({
-          ...result.data,
-          password: hashedPassword,
-        });
-      } catch (dbError) {
-        console.error("[REGISTER] Database error creating user:", dbError);
-        return res.status(503).json({ message: "Authentication temporarily unavailable" });
-      }
+      const hashedPassword = await hashPassword(password);
+      const user = await storage.createUser({
+        ...result.data,
+        password: hashedPassword,
+      });
 
       console.log("[REGISTER] User created, id:", user.id);
 

@@ -22,6 +22,7 @@ class EmailService {
   private isConfigured = false;
 
   constructor() {
+    // Fire and forget initialization
     void this.initialize();
   }
 
@@ -29,13 +30,13 @@ class EmailService {
     const emailHost = process.env.EMAIL_HOST;
     const emailPort = process.env.EMAIL_PORT;
     const emailUser = process.env.EMAIL_USER;
+    // Gmail app passwords are often copied with spaces; strip them
     const emailPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
     const emailFrom = process.env.EMAIL_FROM;
 
     // Check if email is configured
     if (!emailHost || !emailPort || !emailUser || !emailPass || !emailFrom) {
       console.warn("[EMAIL] Email service not configured. Set EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, and EMAIL_FROM in .env");
-      console.warn(`[EMAIL] Present -> host:${!!emailHost} port:${!!emailPort} user:${!!emailUser} pass:${emailPass ? "yes" : "no"} from:${!!emailFrom}`);
       console.warn("[EMAIL] Emails will be logged to console instead of being sent.");
       this.isConfigured = false;
       return;
@@ -53,6 +54,7 @@ class EmailService {
       };
 
       this.transporter = nodemailer.createTransport(config);
+      // Verify connection immediately to surface auth issues early
       await this.transporter.verify();
       this.isConfigured = true;
       console.log("[EMAIL] Email service configured successfully");
