@@ -4,9 +4,7 @@ import {
   Layout,
   HiringPulseHero,
   MarketDemandStats,
-  PeerComparison,
   ActionableSteps,
-  RecentActivity,
   RoleReadinessOverview,
   WhatIfSimulator
 } from "@/components/index";
@@ -589,32 +587,11 @@ export default function Dashboard() {
           <MarketDemandStats stats={data.marketStats} />
         </section>
 
-        {/* Main Grid Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          {/* Left Column: Recommendations */}
-          <div className="lg:col-span-2 space-y-10">
-            {/* Section 5: Actionable Steps */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Recommended Actions</h3>
-              <ActionableSteps steps={data.actionSteps} />
-            </div>
-          </div>
-
-          {/* Right Column: Peer Comparison & Activity */}
-          <div className="space-y-10">
-            {/* Section 4: Peer Comparison */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1 flex items-center gap-2">
-                Peer Benchmarking
-              </h3>
-              <PeerComparison data={data.peerComparison} />
-            </div>
-
-            {/* Section 6: Recent Activity */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Recent Activity</h3>
-              <RecentActivity activities={data.recentActivity} />
-            </div>
+        {/* Main Content: Recommended Actions */}
+        <div className="space-y-10">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold opacity-60 uppercase tracking-widest pl-1">Recommended Actions</h3>
+            <ActionableSteps steps={data.actionSteps} />
           </div>
         </div>
 
