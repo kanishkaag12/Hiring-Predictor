@@ -79,6 +79,24 @@ class ResumeParser:
         'experience', 'worked', 'employment', 'internship', 'project', 'developed',
         'managed', 'led', 'responsible', 'coordinated', 'supervise'
     ]
+
+    # Broader skill inventory for non-engineering resumes (business, ops, office, soft skills)
+    GENERAL_SKILLS = [
+        # Office/productivity
+        'microsoft excel', 'excel', 'google sheets', 'spreadsheets', 'powerpoint', 'microsoft office',
+        'word', 'ms office', 'presentation skills', 'data entry',
+        # Business/analysis
+        'business analysis', 'business analytics', 'market research', 'operations management',
+        'supply chain', 'customer service', 'customer support', 'process improvement',
+        'data analysis', 'analytics', 'reporting', 'documentation',
+        # Project/program
+        'project management', 'program management', 'agile', 'scrum', 'kanban',
+        # Communication & collaboration
+        'communication skills', 'team collaboration', 'stakeholder management', 'presentation',
+        'public speaking', 'leadership', 'problem solving', 'analytical thinking',
+        # Tools
+        'jira', 'trello', 'asana', 'notion', 'confluence', 'slack',
+    ]
     
     def __init__(self, file_path: str):
         self.file_path = file_path
@@ -143,14 +161,47 @@ class ResumeParser:
             skills_text = " ".join(skills_matches)
         else:
             skills_text = text_lower
+
+        # Normalize bullet artifacts that break word boundaries (e.g., (cid:127), •)
+        skills_text = re.sub(r"\(cid:\d+\)", " ", skills_text)
         
-        # Search for known skills
-        for category, skill_list in self.TECHNICAL_SKILLS.items():
+        # Search for known skills (tech + general)
+        known_skill_lists = list(self.TECHNICAL_SKILLS.values()) + [self.GENERAL_SKILLS]
+        for skill_list in known_skill_lists:
             for skill in skill_list:
-                # Use word boundaries to avoid partial matches
-                pattern = r'\b' + re.escape(skill) + r'\b'
+                pattern = r'\\b' + re.escape(skill) + r'\\b'
                 if re.search(pattern, skills_text):
                     skills.add(skill.title())
+
+        # Fallback: capture bullet/line items from the Skills section even if not in our dictionaries
+        if not skills and skills_text:
+            for line in skills_text.splitlines():
+                cleaned_line = re.sub(r"\(cid:\d+\)", " ", line)
+                cleaned_line = re.sub(r"^[^A-Za-z0-9]+", "", cleaned_line).strip()
+                if not cleaned_line:
+                    continue
+
+                # Split on common delimiters inside the line
+                for raw in re.split(r"[,;/|]", cleaned_line):
+                    candidate = raw.strip().strip('.').strip()
+                    if not candidate:
+                        continue
+
+                    words = candidate.split()
+                    lead_stop = {"and", "with", "in", "for", "of", "to", "the", "a", "an", "skilled", "proficient"}
+                    while words and (len(words[0]) <= 2 or words[0].lower() in lead_stop):
+                        words = words[1:]
+
+                    if len(words) == 0 or len(words) > 6:
+                        continue
+
+                    candidate_clean = " ".join(words)
+                    lower = candidate_clean.lower()
+                    if lower in {"skills", "skill", "experience", "internship", "projects", "education"}:
+                        continue
+
+                    normalized = re.sub(r"\s+", " ", candidate_clean).title()
+                    skills.add(normalized)
         
         return sorted(list(skills))
     

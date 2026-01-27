@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Briefcase, Search, Settings, Home, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -8,8 +8,8 @@ import { useAuth } from "@/hooks/use-auth";
 
 interface UserStats {
   profileScore: number;
-  jobsApplied: number;
-  interviews: number;
+  status: string;
+  joinedPlatform: string | null;
 }
 
 interface Activity {
@@ -25,8 +25,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const [stats, setStats] = useState<UserStats | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
 
   // Fetch stats and activities when user is authenticated
@@ -124,19 +124,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Jobs Applied</span>
+              <span className="text-muted-foreground">Status</span>
               <span className="font-medium text-foreground">
-                {statsLoading ? "..." : stats?.jobsApplied || 0}
+                {statsLoading ? "..." : stats?.status || "Not set"}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Interviews</span>
+              <span className="text-muted-foreground">Joined Platform</span>
               <span className="font-medium text-foreground">
-                {statsLoading ? "..." : stats?.interviews || 0}
+                {statsLoading
+                  ? "..."
+                  : stats?.joinedPlatform
+                    ? new Date(stats.joinedPlatform).toLocaleDateString()
+                    : "Not available"}
               </span>
             </div>
           </div>
         </div>
+
         {/* Recent Activity Section */}
         <div className="px-4 py-3 mx-4 mb-4 bg-accent/20 rounded-lg border border-border/30">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Recent Activity</h3>
