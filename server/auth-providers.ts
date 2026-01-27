@@ -9,16 +9,18 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "YOUR_GOOGLE_CLIENT_SECRET";
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "YOUR_GITHUB_CLIENT_ID";
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "YOUR_GITHUB_CLIENT_SECRET";
+const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:5000";
 
 console.log("GOOGLE_CLIENT_ID:", GOOGLE_CLIENT_ID);
 console.log("GITHUB_CLIENT_ID:", GITHUB_CLIENT_ID);
+console.log("APP_BASE_URL:", APP_BASE_URL);
 
 passport.use(
   new GoogleStrategy(
     {
       clientID: GOOGLE_CLIENT_ID,
       clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
+      callbackURL: `${APP_BASE_URL}/api/auth/google/callback`,
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       console.log("Google profile:", profile);
@@ -49,7 +51,7 @@ passport.use(
     {
       clientID: GITHUB_CLIENT_ID,
       clientSecret: GITHUB_CLIENT_SECRET,
-      callbackURL: "/api/auth/github/callback",
+      callbackURL: `${APP_BASE_URL}/api/auth/github/callback`,
       scope: ["user:email"],
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
