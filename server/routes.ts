@@ -115,13 +115,13 @@ async function evaluateResumeQuality(buffer: Buffer, filename: string, userType?
     // Final score: Average of components
     const finalScore = Math.round((sizeScore * 0.25 + contentScore * 0.65 + (typeBonus * 0.1)));
 
-    // Clamp between 60-95 (all resumes get at least some credit)
-    return Math.max(60, Math.min(95, finalScore));
+    // Clamp between 50-90 to leave headroom for parser-based override
+    return Math.max(50, Math.min(90, finalScore));
 
   } catch (error) {
     console.error("Resume evaluation error:", error);
     // On any error, use safe default score
-    return 75;
+    return 70;
   }
 }
 
@@ -554,6 +554,18 @@ export async function registerRoutes(
           projects_count: 0,
           resume_completeness_score: 0,
         };
+      }
+
+      // Use parsed resume completeness to refine resumeScore (preferred over heuristic)
+      if (
+        parsedResume &&
+        typeof parsedResume.resume_completeness_score === "number" &&
+        Number.isFinite(parsedResume.resume_completeness_score)
+      ) {
+        const parsedScore = Math.round(parsedResume.resume_completeness_score * 100);
+        if (parsedScore > 0) {
+          resumeScore = Math.max(resumeScore, Math.min(parsedScore, 100));
+        }
       }
 
       // ====================
@@ -1014,10 +1026,12 @@ export async function registerRoutes(
         profileScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
       }
 
+      const joinedPlatform = (user as any).createdAt || user.resumeUploadedAt || null;
+
       res.json({
         profileScore,
-        jobsApplied: favourites.length, // Using favorites as a proxy for "Applied" for now
-        interviews: 0 // Placeholder until interview tracking is implemented
+        status: user.userType || "Not set",
+        joinedPlatform,
       });
     } catch (error) {
       console.error("Dashboard stats error:", error);
