@@ -86,14 +86,43 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   userIdIdx: index("prt_user_id_idx").on(table.userId),
 }));
 
+export const jobs = pgTable("jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  company: text("company").notNull(),
+  location: text("location").notNull(),
+  employmentType: text("employment_type").notNull(), // 'Internship' | 'Full-time' | 'Contract'
+  experienceLevel: text("experience_level").notNull(), // 'Student' | 'Fresher' | 'Junior' | 'Mid' | 'Senior'
+  salaryRange: text("salary_range"),
+  skills: jsonb("skills").$type<string[]>().notNull(),
+  source: text("source").notNull(),
+  postedAt: timestamp("posted_at").notNull(),
+  applyUrl: text("apply_url").notNull(),
+  companyType: text("company_type"),
+  companySizeTag: text("company_size_tag"),
+  companyTags: jsonb("company_tags").$type<string[]>(),
+  isInternship: integer("is_internship").default(0), // 0 = false, 1 = true
+  hiringPlatform: text("hiring_platform"),
+  hiringPlatformUrl: text("hiring_platform_url"),
+  applicants: integer("applicants"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  titleIdx: index("jobs_title_idx").on(table.title),
+  companyIdx: index("jobs_company_idx").on(table.company),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
   name: true,
 });
 
+export const insertJobSchema = createInsertSchema(jobs);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Job = typeof jobs.$inferSelect;
+export type InsertJob = z.infer<typeof insertJobSchema>;
 export type Favourite = typeof favourites.$inferSelect;
 export type Skill = typeof skills.$inferSelect;
 export type Project = typeof projects.$inferSelect;

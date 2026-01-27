@@ -8,7 +8,8 @@ import {
   type Project, type InsertProject,
   type Experience, type InsertExperience,
   type PasswordResetToken,
-  users, favourites, skills, projects, experience, passwordResetTokens
+  type Job, type InsertJob,
+  users, favourites, skills, projects, experience, passwordResetTokens, jobs
 } from "@shared/schema";
 
 const { Pool } = pg;
@@ -44,6 +45,11 @@ export interface IStorage {
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
   markTokenAsUsed(token: string): Promise<void>;
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>;
+
+  // Jobs
+  getJobs(): Promise<Job[]>;
+  getJob(id: string): Promise<Job | undefined>;
+  ingestJobs(jobs: InsertJob[]): Promise<Job[]>;
 }
 
 // ====================
@@ -110,6 +116,7 @@ class InMemoryStorage implements IStorage {
   private projects: Map<string, Project> = new Map();
   private experience: Map<string, Experience> = new Map();
   private resetTokens: Map<string, PasswordResetToken> = new Map();
+  private jobs: Map<string, Job> = new Map();
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.get(id);
@@ -285,6 +292,37 @@ class InMemoryStorage implements IStorage {
       user.password = hashedPassword;
       this.users.set(userId, user);
     }
+  }
+
+  async getJobs(): Promise<Job[]> {
+    return Array.from(this.jobs.values());
+  }
+
+  async getJob(id: string): Promise<Job | undefined> {
+    return this.jobs.get(id);
+  }
+
+  async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
+    const createdJobs: Job[] = [];
+    for (const insertJob of insertJobs) {
+      const id = crypto.randomUUID();
+      const job: Job = {
+        ...insertJob,
+        id,
+        salaryRange: insertJob.salaryRange ?? null,
+        companyType: insertJob.companyType ?? null,
+        companySizeTag: insertJob.companySizeTag ?? null,
+        companyTags: insertJob.companyTags ?? null,
+        isInternship: insertJob.isInternship ?? 0,
+        hiringPlatform: insertJob.hiringPlatform ?? null,
+        hiringPlatformUrl: insertJob.hiringPlatformUrl ?? null,
+        applicants: insertJob.applicants ?? null,
+        createdAt: new Date(),
+      };
+      this.jobs.set(id, job);
+      createdJobs.push(job);
+    }
+    return createdJobs;
   }
 }
 
@@ -539,6 +577,38 @@ export class PostgresStorage implements IStorage {
       await db.update(users).set({ password: hashedPassword }).where(eq(users.id, userId));
     } catch (error) {
       console.error("Database error in updateUserPassword:", error);
+      throw error;
+    }
+  }
+
+  async getJobs(): Promise<Job[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db.select().from(jobs);
+    } catch (error) {
+      console.error("Database error in getJobs:", error);
+      return [];
+    }
+  }
+
+  async getJob(id: string): Promise<Job | undefined> {
+    try {
+      if (useMemoryStorage || !db) return undefined;
+      const result = await db.select().from(jobs).where(eq(jobs.id, id));
+      return result[0];
+    } catch (error) {
+      console.error("Database error in getJob:", error);
+      return undefined;
+    }
+  }
+
+  async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      const result = await db.insert(jobs).values(insertJobs).returning();
+      return result;
+    } catch (error) {
+      console.error("Database error in ingestJobs:", error);
       throw error;
     }
   }

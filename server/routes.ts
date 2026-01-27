@@ -4,7 +4,7 @@ import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
 import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User, insertJobSchema } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
 import { IntelligenceService } from "./services/intelligence.service";
 import { AIService } from "./services/ai.service";
@@ -2267,6 +2267,57 @@ export async function registerRoutes(
         status: "error",
         message: "ML inference failed – see server logs",
         detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // ——————————————————————————————————————————————————————————————————————
+  // JOBS INGESTION ENDPOINT
+  // ——————————————————————————————————————————————————————————————————————
+  app.post("/api/jobs/ingest", async (req, res) => {
+    try {
+      const { jobs } = req.body;
+
+      if (!Array.isArray(jobs)) {
+        return res.status(400).json({ message: "Payload must contain a 'jobs' array" });
+      }
+
+      const validatedJobs = [];
+      const errors = [];
+
+      for (let i = 0; i < jobs.length; i++) {
+        const jobData = jobs[i];
+
+        const processedData = {
+          ...jobData,
+          postedAt: jobData.postedAt ? new Date(jobData.postedAt) : new Date(),
+          isInternship: jobData.isInternship ? 1 : 0
+        };
+
+        const result = insertJobSchema.safeParse(processedData);
+        if (result.success) {
+          validatedJobs.push(result.data);
+        } else {
+          errors.push({ index: i, error: result.error.errors });
+        }
+      }
+
+      if (validatedJobs.length === 0 && errors.length > 0) {
+        return res.status(400).json({ message: "No valid jobs found in payload", details: errors });
+      }
+
+      const createdJobs = await storage.ingestJobs(validatedJobs);
+
+      return res.status(201).json({
+        message: `Successfully ingested ${createdJobs.length} jobs`,
+        count: createdJobs.length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("[JOBS-INGEST] Error in /api/jobs/ingest:", error);
+      return res.status(500).json({
+        message: "Failed to ingest jobs",
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });

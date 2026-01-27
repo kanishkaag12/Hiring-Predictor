@@ -5,6 +5,7 @@ import { fetchGreenhouseJobs } from "./sources/greenhouse.fetcher";
 import { fetchLeverJobs } from "./sources/lever.fetcher";
 import { analyzeJob } from "./job.analysis";
 import { User, Skill, Project, Experience } from "@shared/schema";
+import { storage } from "../storage";
 
 function getDaysSincePosted(postedAt: string): number {
   const postedDate = new Date(postedAt);
@@ -112,6 +113,27 @@ export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContex
   const results = await Promise.all(fetchPromises);
   allRawJobs = results.flat();
 
+  // Fetch jobs from database
+  const dbJobs = await storage.getJobs();
+  const mappedDbJobs: Job[] = dbJobs.map(dbJob => ({
+    ...dbJob,
+    postedAt: dbJob.postedAt.toISOString(),
+    isInternship: dbJob.isInternship === 1,
+    salaryRange: dbJob.salaryRange ?? undefined,
+    employmentType: dbJob.employmentType as any,
+    experienceLevel: dbJob.experienceLevel as any,
+    companyType: dbJob.companyType as any,
+    companySizeTag: dbJob.companySizeTag as any,
+    companyTags: dbJob.companyTags ?? [],
+    hiringPlatform: dbJob.hiringPlatform as any,
+    hiringPlatformUrl: dbJob.hiringPlatformUrl ?? undefined,
+    applicants: dbJob.applicants ?? undefined,
+    // Ensure id is preserved
+    id: dbJob.id
+  }));
+
+  allRawJobs = [...allRawJobs, ...mappedDbJobs];
+
   // Count roles per company for size inference
   const companyCounts: Record<string, number> = {};
   allRawJobs.forEach(job => {
@@ -202,13 +224,13 @@ function clamp01(value: number): number {
 
 function normalizeRoleCategory(title: string): string {
   const t = title.toLowerCase();
-  
+
   // Data roles
   if (t.includes("data scientist") || t.includes("data science")) return "Data Scientist";
   if (t.includes("data engineer")) return "Data Engineer";
   if (t.includes("data analyst")) return "Data Analyst";
   if (t.includes("machine learning") || t.includes("ml engineer")) return "ML Engineer";
-  
+
   // Engineering roles - match common user selections
   if (t.includes("frontend") || t.includes("front-end") || t.includes("front end") || t.includes("ui engineer")) return "Frontend Developer";
   if (t.includes("backend") || t.includes("back-end") || t.includes("back end") || t.includes("api developer") || t.includes("server")) return "Backend Developer";
@@ -216,15 +238,15 @@ function normalizeRoleCategory(title: string): string {
   if (t.includes("devops") || t.includes("sre") || t.includes("site reliability")) return "DevOps Engineer";
   if (t.includes("cloud architect") || t.includes("solutions architect")) return "Cloud Architect";
   if (t.includes("mobile") || t.includes("android") || t.includes("ios") || t.includes("react native")) return "Mobile App Developer";
-  
+
   // Product & Design
   if (t.includes("product manager") || t.includes("product management") || t.includes("product owner")) return "Product Manager";
   if (t.includes("ux") || t.includes("ui design") || t.includes("ui/ux") || t.includes("ux/ui") || t.includes("user experience") || t.includes("user interface")) return "UI/UX Designer";
-  
+
   // Business & QA
   if (t.includes("business analyst")) return "Business Analyst";
   if (t.includes("qa engineer") || t.includes("qa analyst") || t.includes("quality assurance") || t.includes("test engineer") || t.includes("sdet")) return "QA Engineer";
-  
+
   // Software Engineer is the catch-all
   return "Software Engineer";
 }
