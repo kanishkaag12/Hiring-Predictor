@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { User, Skill, Project, Experience } from "@shared/schema";
+import { getGeminiModel, isAIEnabled } from "../config/ai-config";
 
 export interface AISimulationResponse {
   simulation: string;
@@ -28,8 +28,6 @@ export interface JobSimulationResponse {
   recommendedNextSteps: string[];
   jobFocusAreas: string[];
 }
-
-const genAI = new GoogleGenerativeAI(process.env.Gemini_API_HIREPULSE || "");
 
 export class AISimulationService {
   static async simulate(
@@ -82,15 +80,32 @@ export class AISimulationService {
       };
     }
 
-    if (!process.env.Gemini_API_HIREPULSE) {
+    if (!isAIEnabled()) {
       return this.mockResponse(userQuery, interestRoles, skills, projects);
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getGeminiModel();
 
     const profileBlock = this.buildProfileBlock(user, skills, projects, experiences, interestRoles, resumeText);
 
-    const systemPrompt = `You are HirePulse AI, a senior career intelligence advisor.
+    const systemPrompt = `You are HirePulse AI, a senior career intelligence advisor and job simulation assistant.
+
+CRITICAL VALIDATION RULES (HIGHEST PRIORITY):
+- If the input is nonsensical, random characters, or not related to jobs, skills, careers, or hiring, you MUST respond with EXACTLY this JSON:
+  {
+    "simulation": "Invalid input. Please provide a meaningful job-related scenario.",
+    "impactByRole": [],
+    "explanation": "Invalid input. Please provide a meaningful job-related scenario.",
+    "roi": "Low",
+    "alternatives": ["Describe a specific skill you want to learn", "Mention a project or certification you're considering", "Ask about a career move or job change"]
+  }
+- Do NOT guess, infer, or fabricate meaning from unclear inputs.
+- Do NOT answer vague, random, or unclear inputs.
+- If intent is unclear, ask the user to clarify instead of simulating.
+- Only respond with detailed analysis when the input clearly describes a job role, skill, career scenario, or hiring situation.
+- This validation rule is HIGHER PRIORITY than being helpful.
+
+For VALID job-related queries:
 
 You must reason deeply and uniquely for every user query. Generic explanations are forbidden.
 
@@ -177,13 +192,31 @@ Return structured JSON ONLY:
       };
     }
 
-    if (!process.env.Gemini_API_HIREPULSE) {
+    if (!isAIEnabled()) {
       return this.mockJobResponse(cleanQuery, jobTitle);
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getGeminiModel();
 
-    const systemPrompt = `You are HirePulse AI, a career growth coach.
+    const systemPrompt = `You are HirePulse AI, a career growth coach and job simulation assistant.
+
+    CRITICAL VALIDATION RULES (HIGHEST PRIORITY):
+    - If the input is nonsensical, random characters, or not related to jobs, skills, careers, or hiring, you MUST respond with EXACTLY this JSON:
+      {
+        "whatYouSimulate": "Invalid input. Please provide a meaningful job-related scenario.",
+        "skillImpacts": [],
+        "overallExplanation": "Invalid input. Please provide a meaningful job-related scenario.",
+        "roi": "Low",
+        "recommendedNextSteps": ["Describe a specific skill you want to learn", "Mention a project or certification you're considering"],
+        "jobFocusAreas": ["Input Validation"]
+      }
+    - Do NOT guess, infer, or fabricate meaning from unclear inputs.
+    - Do NOT answer vague, random, or unclear inputs.
+    - If intent is unclear, ask the user to clarify instead of simulating.
+    - Only respond with detailed analysis when the input clearly describes a job role, skill, career scenario, or hiring situation.
+    - This validation rule is HIGHER PRIORITY than being helpful.
+
+    For VALID job-related queries:
     You will analyze a user's profile against a SPECIFIC job description and simulate the impact of a hypothetical action (e.g. learning a skill).
 
     STRICT RULES:
