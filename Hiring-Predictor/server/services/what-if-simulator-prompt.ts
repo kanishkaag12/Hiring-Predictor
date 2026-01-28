@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { User, Skill, Project, Experience } from "@shared/schema";
 import { RoleSpecificIntelligence } from "./role-specific-intelligence";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.Gemini_API_HIREPULSE || "");
 
 export interface WhatIfSimulationResponse {
   whatYouSimulate: string;
@@ -33,7 +33,7 @@ export class WhatIfSimulatorPrompt {
       throw new Error("User must have at least one selected interest role");
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.Gemini_API_HIREPULSE) {
       return this.getMockResponse(userInput, interestRoles);
     }
 

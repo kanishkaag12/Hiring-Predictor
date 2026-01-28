@@ -13,7 +13,7 @@ export interface AISimulationResponse {
   alternatives: string[];
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.Gemini_API_HIREPULSE || "");
 
 export class AISimulationService {
   static async simulate(
@@ -66,7 +66,7 @@ export class AISimulationService {
       };
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.Gemini_API_HIREPULSE) {
       return this.mockResponse(userQuery, interestRoles, skills, projects);
     }
 

@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { User, Skill, Project, Experience } from "@shared/schema";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.Gemini_API_HIREPULSE || "");
 
 export interface SkillImpactData {
   skill: string;
@@ -38,7 +38,7 @@ export class JobWhatIfSimulator {
     console.log("[JobWhatIfSimulator] userQuery type:", typeof userQuery);
     console.log("[JobWhatIfSimulator] userQuery length:", userQuery ? userQuery.length : 0);
     
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.Gemini_API_HIREPULSE) {
       const result = this.getMockResponse(jobTitle, userQuery, skills);
       console.log("[JobWhatIfSimulator] Mock result whatYouSimulate:", result.whatYouSimulate);
       return result;

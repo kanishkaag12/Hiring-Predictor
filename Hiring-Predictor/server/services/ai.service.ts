@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { User, Skill, Project, Experience } from "@shared/schema";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.Gemini_API_HIREPULSE || "");
 
 export interface AIInsights {
   summary: string;
@@ -28,7 +28,7 @@ export class AIService {
       };
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.Gemini_API_HIREPULSE) {
       return this.getMockInsights(user, skills, projects, experiences);
     }
 
@@ -84,7 +84,7 @@ export class AIService {
     competitionLevel: string,
     peerInsights: string
   ): Promise<string> {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.Gemini_API_HIREPULSE) {
       if (roleResult.score === 0) return "I don't have enough information yet.";
       return `For ${roleResult.roleName} roles, recruiters prioritize hands-on experience and skill depth. Your current readiness is ${roleResult.score}%. Focus on addressing the identified gaps to improve your standing.`;
     }
