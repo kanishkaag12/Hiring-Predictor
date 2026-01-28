@@ -45,7 +45,7 @@ export class JobWhatIfSimulator {
     }
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
       // Build comprehensive system prompt for job-specific analysis
       const systemPrompt = `You are HirePulse's Job-Specific What-If Simulator AI.

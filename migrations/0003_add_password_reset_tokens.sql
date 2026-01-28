@@ -1,7 +1,7 @@
 -- Add password reset tokens table
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
-  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id VARCHAR NOT NULL REFERENCES users(id),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMP NOT NULL,
   used INTEGER DEFAULT 0,

@@ -136,13 +136,14 @@ class InMemoryStorage implements IStorage {
       ...insertUser,
       id,
       username: (insertUser as any).username || insertUser.email.split("@")[0],
-      name: insertUser.name ?? null, // Ensure name is explicitly null if not provided by insertUser
+      name: insertUser.name ?? null,
       role: null,
       college: null,
       gradYear: null,
       location: null,
       githubUrl: null,
       linkedinUrl: null,
+      profileImage: null,
       resumeUrl: null,
       resumeName: null,
       resumeUploadedAt: null,
@@ -307,12 +308,20 @@ class InMemoryStorage implements IStorage {
     for (const insertJob of insertJobs) {
       const id = crypto.randomUUID();
       const job: Job = {
-        ...insertJob,
         id,
+        title: insertJob.title,
+        company: insertJob.company,
+        location: insertJob.location,
+        employmentType: insertJob.employmentType,
+        experienceLevel: insertJob.experienceLevel,
         salaryRange: insertJob.salaryRange ?? null,
+        skills: Array.isArray(insertJob.skills) ? (insertJob.skills as string[]) : [],
+        source: insertJob.source,
+        postedAt: insertJob.postedAt,
+        applyUrl: insertJob.applyUrl,
         companyType: insertJob.companyType ?? null,
         companySizeTag: insertJob.companySizeTag ?? null,
-        companyTags: insertJob.companyTags ?? null,
+        companyTags: insertJob.companyTags ? (Array.isArray(insertJob.companyTags) ? (insertJob.companyTags as string[]) : Array.from(insertJob.companyTags as any) as string[]) : null,
         isInternship: insertJob.isInternship ?? 0,
         hiringPlatform: insertJob.hiringPlatform ?? null,
         hiringPlatformUrl: insertJob.hiringPlatformUrl ?? null,
@@ -605,7 +614,26 @@ export class PostgresStorage implements IStorage {
   async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
     try {
       if (useMemoryStorage || !db) throw new Error("Database not available");
-      const result = await db.insert(jobs).values(insertJobs).returning();
+      const mappedJobs = insertJobs.map(job => ({
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        employmentType: job.employmentType,
+        experienceLevel: job.experienceLevel,
+        salaryRange: job.salaryRange ?? null,
+        skills: (Array.isArray(job.skills) ? job.skills : []) as string[],
+        source: job.source,
+        postedAt: job.postedAt,
+        applyUrl: job.applyUrl,
+        companyType: job.companyType ?? null,
+        companySizeTag: job.companySizeTag ?? null,
+        companyTags: job.companyTags ? (Array.isArray(job.companyTags) ? (job.companyTags as string[]) : Array.from(job.companyTags as any) as string[]) : null,
+        isInternship: job.isInternship ?? 0,
+        hiringPlatform: job.hiringPlatform ?? null,
+        hiringPlatformUrl: job.hiringPlatformUrl ?? null,
+        applicants: job.applicants ?? null,
+      }));
+      const result = await db.insert(jobs).values(mappedJobs).returning();
       return result;
     } catch (error) {
       console.error("Database error in ingestJobs:", error);
