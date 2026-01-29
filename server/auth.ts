@@ -74,6 +74,7 @@ export function setupAuth(app: Express) {
         createTableIfMissing: true,
         // Optimize for Neon: use shorter TTL and disable pruning during requests
         ttl: 24 * 60 * 60, // 24 hours in seconds
+        tableName: "session", // Explicitly define table name to prevent file-based fallbacks
       });
       pgStore.on("error", (err: any) => {
         console.error("[auth] Session store error:", err);
