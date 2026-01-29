@@ -1,1 +1,0 @@
-ALTER TABLE "users" ALTER COLUMN "interest_roles" DROP DEFAULT;
