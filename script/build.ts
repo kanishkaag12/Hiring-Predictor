@@ -7,8 +7,10 @@ import { rm, readFile } from "fs/promises";
 const allowlist = [
   "@google/generative-ai",
   "axios",
-  "connect-pg-simple",
   "cors",
+    // NOTE: connect-pg-simple reads table.sql file from disk
+    // It must NOT be bundled, otherwise path resolution breaks in prod
+    // Keep it external so it can find its resources correctly
   "date-fns",
   "drizzle-orm",
   "drizzle-zod",

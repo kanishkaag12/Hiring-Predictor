@@ -599,6 +599,13 @@ export async function registerRoutes(
       try {
         const updated = await storage.updateUser(userId, updateWithStatus);
 
+        console.log(`[Resume Upload] Successfully saved resume for user ${userId}:`, {
+          parsingStatus,
+          skillsCount: parsedResume.skills.length,
+          skills: parsedResume.skills.slice(0, 5),
+          savedSkillsCount: Array.isArray(updated.resumeParsedSkills) ? updated.resumeParsedSkills.length : 0
+        });
+
         // ====================
         // 5. CALCULATE ROLE MATCHES
         // ====================
@@ -777,11 +784,25 @@ export async function registerRoutes(
 
     const roleSkillMatches = SkillRoleMappingService.calculateAllRoleMatches(resumeSkills);
 
+    console.log(`[DASHBOARD DEBUG] User ${userId}:`, {
+      hasResume: !!user.resumeUrl,
+      resumeSkillsCount: resumeSkills.length,
+      resumeSkills: resumeSkills.slice(0, 5),
+      projectsCount: projects.length,
+      experiencesCount: experiences.length,
+      shouldRunML: resumeSkills.length > 0 || projects.length > 0 || experiences.length > 0 || rolesToCalculate.length > 0,
+      interestRoles: rolesToCalculate
+    });
+
     // ML-based role predictions (probabilistic, background-agnostic)
+    // Run if user has: resume skills OR projects OR experiences OR selected interest roles
     let mlRolePredictions = null;
-    if (resumeSkills.length > 0 || projects.length > 0 || experiences.length > 0) {
+    if (resumeSkills.length > 0 || projects.length > 0 || experiences.length > 0 || rolesToCalculate.length > 0) {
       try {
+        console.log(`[DASHBOARD DEBUG] Initializing ML predictor for user ${userId}`);
         const predictor = getRolePredictor();
+        
+        console.log(`[DASHBOARD DEBUG] Calling predictRoles with skills=${resumeSkills.length}, projects=${projects.length}, experiences=${experiences.length}, interestRoles=${rolesToCalculate.length}`);
         mlRolePredictions = predictor.predictRoles({
           skills: resumeSkills,
           education: Array.isArray(user.resumeEducation) ? user.resumeEducation : undefined,
@@ -810,10 +831,18 @@ export async function registerRoutes(
           projectsCount: projects.length,
           educationDegree: user.resumeEducation?.[0]?.degree || undefined
         });
+        
+        console.log(`[DASHBOARD DEBUG] ML predictions result for user ${userId}:`, {
+          hasResult: !!mlRolePredictions,
+          topRolesCount: mlRolePredictions?.topRoles?.length || 0
+        });
       } catch (err) {
-        console.error('[Dashboard] ML prediction error:', err);
+        console.error('[Dashboard] ML prediction error for user ' + userId + ':', err);
+        console.error('[Dashboard] Error stack:', (err as Error).stack);
         mlRolePredictions = null;
       }
+    } else {
+      console.log(`[DASHBOARD DEBUG] Skipping ML predictor - no data available for user ${userId}`);
     }
 
     // Get detailed role skill analysis for interest roles
@@ -870,6 +899,13 @@ export async function registerRoutes(
 
     // Enrich ML predictions with user intent (AI alignment guidance for selected roles)
     const userInterestRoles = user.interestRoles || [];
+    
+    console.log(`[DASHBOARD DEBUG] Creating enrichedMLPredictions for user ${userId}:`, {
+      hasMLPredictions: !!mlRolePredictions,
+      userInterestRolesCount: userInterestRoles.length,
+      userInterestRoles
+    });
+    
     const enrichedMLPredictions = mlRolePredictions ? {
       ...mlRolePredictions,
       topRoles: mlRolePredictions.topRoles?.map((role: any) => ({
@@ -911,9 +947,11 @@ export async function registerRoutes(
               explanation: analysis.explanation,
               constructiveGuidance: analysis.constructiveGuidance
             };
+            console.log(`[DASHBOARD DEBUG] AI alignment for ${roleName}:`, { alignmentStatus: aiAlignment.alignmentStatus, confidence: aiAlignment.confidence });
           }
         } catch (err) {
           console.error(`[Dashboard] Role alignment analysis error for ${roleName}:`, err);
+          console.error(`[Dashboard] Error details:`, (err as Error).stack);
         }
 
         return {
@@ -924,6 +962,11 @@ export async function registerRoutes(
         };
       })
     } : null;
+    
+    console.log(`[DASHBOARD DEBUG] Enriched ML predictions for user ${userId}:`, {
+      hasEnrichedPredictions: !!enrichedMLPredictions,
+      userSelectedRolesCount: enrichedMLPredictions?.userSelectedRoles?.length || 0
+    });
 
     res.json({
       isDashboardGated: isGated,
@@ -939,7 +982,7 @@ export async function registerRoutes(
       },
       roleReadiness: readinessScores,
       recentActivity: [
-        user.resumeUploadedAt ? { type: "analysis", label: "Resume Analyzed", timestamp: new Date(user.resumeUploadedAt).toLocaleDateString() } : null,
+        user.resumeUploadedAt ? { type: "analysis", label: "Resume Analyzed", timestamp: user.resumeUploadedAt instanceof Date ? user.resumeUploadedAt.toLocaleDateString() : String(user.resumeUploadedAt) } : null,
         skills.length > 0 ? { type: "skill", label: `Added ${skills.length} skills`, timestamp: "Recently" } : null,
         user.userType ? { type: "profile", label: `Status: ${user.userType}`, timestamp: "Recently" } : null,
         { type: "application", label: "Joined Platform", timestamp: "Recently" }
