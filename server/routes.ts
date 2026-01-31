@@ -229,6 +229,39 @@ export async function registerRoutes(
     }
   });
 
+  // ✅ INGESTED JOBS (from database via n8n) - MUST come before /:id route
+  app.get("/api/jobs/ingested", async (req, res) => {
+    try {
+      const jobs = await storage.getIngestedJobs();
+      
+      // Return only the specified fields
+      const ingestedJobs = jobs.map(job => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        city: job.city,
+        state: job.state,
+        country: job.country,
+        apply_url: job.applyUrl,
+        source: job.source,
+        posted_at: job.postedAt,
+      }));
+      
+      res.json({
+        success: true,
+        count: ingestedJobs.length,
+        jobs: ingestedJobs
+      });
+    } catch (error) {
+      console.error("Error fetching ingested jobs:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch ingested jobs" 
+      });
+    }
+  });
+
   // ✅ SINGLE JOB
   app.get("/api/jobs/:id", async (req, res) => {
     const { id } = req.params;

@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import {
   type User, type InsertUser,
   type Favourite, type InsertFavourite,
@@ -49,6 +49,7 @@ export interface IStorage {
   // Jobs
   getJobs(): Promise<Job[]>;
   getJob(id: string): Promise<Job | undefined>;
+  getIngestedJobs(): Promise<Job[]>;
   ingestJobs(jobs: InsertJob[]): Promise<Job[]>;
 }
 
@@ -306,6 +307,12 @@ class InMemoryStorage implements IStorage {
     return this.jobs.get(id);
   }
 
+  async getIngestedJobs(): Promise<Job[]> {
+    return Array.from(this.jobs.values()).sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
   async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
     const createdJobs: Job[] = [];
     for (const insertJob of insertJobs) {
@@ -315,6 +322,9 @@ class InMemoryStorage implements IStorage {
         title: insertJob.title,
         company: insertJob.company,
         location: insertJob.location,
+        city: insertJob.city ?? null,
+        state: insertJob.state ?? null,
+        country: insertJob.country ?? null,
         employmentType: insertJob.employmentType,
         experienceLevel: insertJob.experienceLevel,
         salaryRange: insertJob.salaryRange ?? null,
@@ -611,6 +621,42 @@ export class PostgresStorage implements IStorage {
     } catch (error) {
       console.error("Database error in getJob:", error);
       return undefined;
+    }
+  }
+
+  async getIngestedJobs(): Promise<Job[]> {
+    try {
+      if (useMemoryStorage || !db) return [];
+      return await db
+        .select({
+          id: jobs.id,
+          title: jobs.title,
+          company: jobs.company,
+          location: jobs.location,
+          city: jobs.city,
+          state: jobs.state,
+          country: jobs.country,
+          applyUrl: jobs.applyUrl,
+          source: jobs.source,
+          postedAt: jobs.postedAt,
+          employmentType: jobs.employmentType,
+          experienceLevel: jobs.experienceLevel,
+          salaryRange: jobs.salaryRange,
+          skills: jobs.skills,
+          companyType: jobs.companyType,
+          companySizeTag: jobs.companySizeTag,
+          companyTags: jobs.companyTags,
+          isInternship: jobs.isInternship,
+          hiringPlatform: jobs.hiringPlatform,
+          hiringPlatformUrl: jobs.hiringPlatformUrl,
+          applicants: jobs.applicants,
+          createdAt: jobs.createdAt,
+        })
+        .from(jobs)
+        .orderBy(desc(jobs.createdAt));
+    } catch (error) {
+      console.error("Database error in getIngestedJobs:", error);
+      return [];
     }
   }
 
