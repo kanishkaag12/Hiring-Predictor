@@ -2319,46 +2319,95 @@ export async function registerRoutes(
   // ——————————————————————————————————————————————————————————————————————
   app.post("/api/jobs/ingest", async (req, res) => {
     try {
-      const { jobs } = req.body;
+      const bodyData = req.body;
 
-      if (!Array.isArray(jobs)) {
-        return res.status(400).json({ message: "Payload must contain a 'jobs' array" });
+      // Handle both single job object and array of jobs
+      let jobsToIngest = [];
+      if (Array.isArray(bodyData)) {
+        jobsToIngest = bodyData;
+      } else if (bodyData.jobs && Array.isArray(bodyData.jobs)) {
+        jobsToIngest = bodyData.jobs;
+      } else if (typeof bodyData === 'object' && bodyData !== null) {
+        // Single job object
+        jobsToIngest = [bodyData];
+      } else {
+        return res.status(400).json({ message: "Invalid payload format" });
+      }
+
+      // Validate required fields
+      for (const job of jobsToIngest) {
+        if (!job.title || !job.company || !job.apply_url) {
+          return res.status(400).json({ 
+            message: "Missing required fields: title, company, and apply_url are required",
+            received: job
+          });
+        }
       }
 
       const validatedJobs = [];
       const errors = [];
 
-      for (let i = 0; i < jobs.length; i++) {
-        const jobData = jobs[i];
+      for (let i = 0; i < jobsToIngest.length; i++) {
+        const jobData = jobsToIngest[i];
 
+        // Map n8n field names to database schema
         const processedData = {
-          ...jobData,
-          postedAt: jobData.postedAt ? new Date(jobData.postedAt) : new Date(),
-          isInternship: jobData.isInternship ? 1 : 0
+          title: jobData.title,
+          company: jobData.company,
+          location: jobData.location || jobData.city || jobData.country || 'Remote',
+          city: jobData.city,
+          state: jobData.state,
+          country: jobData.country,
+          employmentType: jobData.employment_type || jobData.employmentType || 'Full-time',
+          experienceLevel: jobData.experience_level || jobData.experienceLevel || 'Fresher',
+          salaryRange: jobData.salary_range || jobData.salaryRange || null,
+          skills: Array.isArray(jobData.skills) ? jobData.skills : [],
+          source: jobData.source || 'n8n-rapidapi',
+          postedAt: jobData.posted_at ? new Date(jobData.posted_at) : 
+                    jobData.postedAt ? new Date(jobData.postedAt) : new Date(),
+          applyUrl: jobData.apply_url || jobData.applyUrl,
+          isInternship: jobData.is_internship || jobData.isInternship ? 1 : 0,
+          hiringPlatform: jobData.hiring_platform || jobData.hiringPlatform || null,
+          hiringPlatformUrl: jobData.google_job_link || jobData.googleJobLink || jobData.hiringPlatformUrl || null,
+          companyType: jobData.company_type || jobData.companyType || null,
+          companySizeTag: jobData.company_size_tag || jobData.companySizeTag || null,
+          companyTags: jobData.company_tags || jobData.companyTags || null,
+          applicants: jobData.applicants || null
         };
 
         const result = insertJobSchema.safeParse(processedData);
         if (result.success) {
           validatedJobs.push(result.data);
         } else {
-          errors.push({ index: i, error: result.error.errors });
+          errors.push({ index: i, error: result.error.errors, data: jobData });
         }
       }
 
       if (validatedJobs.length === 0 && errors.length > 0) {
-        return res.status(400).json({ message: "No valid jobs found in payload", details: errors });
+        return res.status(400).json({ 
+          message: "No valid jobs found in payload", 
+          details: errors 
+        });
       }
 
-      const createdJobs = await storage.ingestJobs(validatedJobs);
+      // Database will handle duplicates via ON CONFLICT DO NOTHING
+      let createdJobs = [];
+      if (validatedJobs.length > 0) {
+        createdJobs = await storage.ingestJobs(validatedJobs);
+      }
 
       return res.status(201).json({
-        message: `Successfully ingested ${createdJobs.length} jobs`,
+        success: true,
+        message: createdJobs.length > 0 
+          ? `Successfully ingested ${createdJobs.length} job(s)` 
+          : "Job already exists in database (duplicate)",
         count: createdJobs.length,
         errors: errors.length > 0 ? errors : undefined
       });
     } catch (error) {
       console.error("[JOBS-INGEST] Error in /api/jobs/ingest:", error);
       return res.status(500).json({
+        success: false,
         message: "Failed to ingest jobs",
         error: error instanceof Error ? error.message : String(error)
       });
