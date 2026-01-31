@@ -11,6 +11,9 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 60000, // 60 seconds for initial connection
   statement_timeout: 60000, // 60 seconds for each statement
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 async function runAllMigrations() {

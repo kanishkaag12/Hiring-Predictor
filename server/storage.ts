@@ -85,6 +85,9 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000, // 5s timeout for connection attempts
   keepAlive: true,              // Enable TCP keepalive to maintain connections
   keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
+  ssl: {
+    rejectUnauthorized: false   // Accept self-signed certificates for Render
+  }
 });
 
 // Set up error handlers on the pool
