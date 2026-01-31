@@ -91,6 +91,9 @@ export const jobs = pgTable("jobs", {
   title: text("title").notNull(),
   company: text("company").notNull(),
   location: text("location").notNull(),
+  city: text("city"),
+  state: text("state"),
+  country: text("country"),
   employmentType: text("employment_type").notNull(), // 'Internship' | 'Full-time' | 'Contract'
   experienceLevel: text("experience_level").notNull(), // 'Student' | 'Fresher' | 'Junior' | 'Mid' | 'Senior'
   salaryRange: text("salary_range"),
