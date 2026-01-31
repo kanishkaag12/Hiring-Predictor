@@ -11,7 +11,8 @@
     "check": "tsc",
     "migrate": "node run-all-migrations.js",
     "db:push": "drizzle-kit push",
-    "db:migrate": "node run-all-migrations.js"
+    "db:migrate": "node run-all-migrations.js",
+    "test:ingest": "tsx test-job-ingest.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

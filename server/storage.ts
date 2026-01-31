@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   type User, type InsertUser,
   type Favourite, type InsertFavourite,
@@ -633,7 +633,14 @@ export class PostgresStorage implements IStorage {
         hiringPlatformUrl: job.hiringPlatformUrl ?? null,
         applicants: job.applicants ?? null,
       }));
-      const result = await db.insert(jobs).values(mappedJobs).returning();
+      
+      // Use ON CONFLICT DO NOTHING to gracefully handle duplicates
+      const result = await db
+        .insert(jobs)
+        .values(mappedJobs)
+        .onConflictDoNothing({ target: jobs.applyUrl })
+        .returning();
+      
       return result;
     } catch (error) {
       console.error("Database error in ingestJobs:", error);
