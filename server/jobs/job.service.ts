@@ -98,22 +98,23 @@ export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContex
   const enabledSources = getEnabledBackendSources();
   let allRawJobs: Job[] = [];
 
-  // Fetch all sources in parallel
-  const fetchPromises = enabledSources.map(async (source) => {
-    try {
-      if (source.id === "remotive") return await fetchRemotiveJobs();
-      if (source.id === "greenhouse") return await fetchGreenhouseJobs();
-      if (source.id === "lever") return await fetchLeverJobs();
-    } catch (error) {
-      console.error(`Failed to fetch jobs from ${source.id}:`, error);
-    }
-    return [];
-  });
+  // DISABLED: External job sources (Remotive, Greenhouse, Lever)
+  // Only fetch from database now
+  // const fetchPromises = enabledSources.map(async (source) => {
+  //   try {
+  //     if (source.id === "remotive") return await fetchRemotiveJobs();
+  //     if (source.id === "greenhouse") return await fetchGreenhouseJobs();
+  //     if (source.id === "lever") return await fetchLeverJobs();
+  //   } catch (error) {
+  //     console.error(`Failed to fetch jobs from ${source.id}:`, error);
+  //   }
+  //   return [];
+  // });
 
-  const results = await Promise.all(fetchPromises);
-  allRawJobs = results.flat();
+  // const results = await Promise.all(fetchPromises);
+  // allRawJobs = results.flat();
 
-  // Fetch jobs from database
+  // Fetch jobs from database only
   const dbJobs = await storage.getJobs();
   const mappedDbJobs: Job[] = dbJobs.map(dbJob => ({
     ...dbJob,
@@ -132,7 +133,7 @@ export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContex
     id: dbJob.id
   }));
 
-  allRawJobs = [...allRawJobs, ...mappedDbJobs];
+  allRawJobs = mappedDbJobs;
 
   // Count roles per company for size inference
   const companyCounts: Record<string, number> = {};
