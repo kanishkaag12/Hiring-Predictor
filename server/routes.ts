@@ -2366,40 +2366,16 @@ export async function registerRoutes(
     try {
       console.log("REQ BODY:", req.body);
       const jobs = Array.isArray(req.body) ? req.body : [req.body];
-      const bodyData = req.body;
-
-      // Handle both single job object and array of jobs
-      let jobsToIngest = [];
-      if (Array.isArray(bodyData)) {
-        jobsToIngest = bodyData;
-      } else if (bodyData.jobs && Array.isArray(bodyData.jobs)) {
-        jobsToIngest = bodyData.jobs;
-      } else if (typeof bodyData === 'object' && bodyData !== null) {
-        // Single job object
-        jobsToIngest = [bodyData];
-      } else {
-        return res.status(400).json({ message: "Invalid payload format" });
-      }
+      
+      const validJobs = jobs.filter(job =>
+        job.title && job.apply_link
+      );
 
       const errors = [];
       const createdJobs = [];
-      const requiredFields = ["title", "apply_link"];
 
-      for (let i = 0; i < jobsToIngest.length; i++) {
-        const jobData = jobsToIngest[i];
-        const missingFields = requiredFields.filter(
-          field => jobData?.[field] === null || jobData?.[field] === undefined
-        );
-
-        if (missingFields.length > 0) {
-          errors.push({
-            index: i,
-            message: "Missing required fields",
-            missing: missingFields,
-            received: jobData
-          });
-          continue;
-        }
+      for (let i = 0; i < validJobs.length; i++) {
+        const jobData = validJobs[i];
 
         const columns = Object.keys(jobData || {}).filter((column) => column !== "id");
         if (columns.length === 0) {
