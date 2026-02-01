@@ -2413,13 +2413,27 @@ export async function registerRoutes(
         const columnSql = columns.map((column) => `"${column}"`).join(", ");
         const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(", ");
 
-        const insertResult = await pool.query(
-          `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO NOTHING RETURNING *`,
-          values
-        );
+        try {
+          const insertResult = await pool.query(
+            `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO NOTHING RETURNING *`,
+            values
+          );
 
-        if (insertResult.rows.length > 0) {
-          createdJobs.push(insertResult.rows[0]);
+          if (insertResult.rows.length > 0) {
+            createdJobs.push(insertResult.rows[0]);
+          }
+        } catch (err: any) {
+          if (err.code === '23505') {
+            // Duplicate constraint violation (e.g., duplicate apply_link)
+            errors.push({
+              index: i,
+              message: "Duplicate job detected",
+              reason: "apply_link already exists in database",
+              received: jobData
+            });
+            continue;
+          }
+          throw err;
         }
       }
 
