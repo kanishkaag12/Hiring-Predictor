@@ -2415,20 +2415,9 @@ export async function registerRoutes(
         }
       }
 
-      if (createdJobs.length === 0 && errors.length > 0) {
-        return res.status(400).json({ 
-          message: "No valid jobs found in payload", 
-          details: errors 
-        });
-      }
-
-      return res.status(201).json({
+      return res.status(200).json({
         success: true,
-        message: createdJobs.length > 0
-          ? `Successfully ingested ${createdJobs.length} job(s)`
-          : "Job already exists in database (duplicate)",
-        count: createdJobs.length,
-        errors: errors.length > 0 ? errors : undefined
+        message: "Job ingested"
       });
     } catch (error) {
       console.error("[JOBS-INGEST] Error in /api/jobs/ingest:", error);
