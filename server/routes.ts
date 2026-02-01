@@ -2381,7 +2381,7 @@ export async function registerRoutes(
 
       const errors = [];
       const createdJobs = [];
-      const requiredFields = ["id", "title", "apply_link"];
+      const requiredFields = ["title", "apply_link"];
 
       for (let i = 0; i < jobsToIngest.length; i++) {
         const jobData = jobsToIngest[i];
@@ -2399,7 +2399,7 @@ export async function registerRoutes(
           continue;
         }
 
-        const columns = Object.keys(jobData || {});
+        const columns = Object.keys(jobData || {}).filter((column) => column !== "id");
         if (columns.length === 0) {
           errors.push({
             index: i,
