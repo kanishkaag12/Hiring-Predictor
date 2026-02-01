@@ -115,22 +115,30 @@ export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContex
   // allRawJobs = results.flat();
 
   // Fetch jobs from database only
-  const dbJobs = await storage.getJobs();
-  const mappedDbJobs: Job[] = dbJobs.map(dbJob => ({
-    ...dbJob,
-    postedAt: dbJob.postedAt.toISOString(),
-    isInternship: dbJob.isInternship === 1,
-    salaryRange: dbJob.salaryRange ?? undefined,
-    employmentType: dbJob.employmentType as any,
-    experienceLevel: dbJob.experienceLevel as any,
-    companyType: dbJob.companyType as any,
-    companySizeTag: dbJob.companySizeTag as any,
-    companyTags: dbJob.companyTags ?? [],
-    hiringPlatform: dbJob.hiringPlatform as any,
-    hiringPlatformUrl: dbJob.hiringPlatformUrl ?? undefined,
-    applicants: dbJob.applicants ?? undefined,
-    // Ensure id is preserved
-    id: dbJob.id
+  const dbJobs = await storage.getJobs() as any[];
+  const mappedDbJobs: Job[] = dbJobs.map((dbJob: any) => ({
+    id: dbJob.id,
+    title: dbJob.title || 'Untitled',
+    company: dbJob.company || 'Unknown Company',
+    location: dbJob.jobLocation || 'Remote',
+    city: dbJob.jobCity,
+    state: dbJob.jobState,
+    country: dbJob.jobCountry,
+    postedAt: dbJob.jobPostedAtDatetimeUtc || dbJob.jobPostedAt || (dbJob.postedAt instanceof Date ? dbJob.postedAt.toISOString() : dbJob.postedAt) || new Date().toISOString(),
+    applyUrl: dbJob.applyLink || '',
+    salary: dbJob.jobSalary || dbJob.salaryRange,
+    salaryRange: dbJob.jobSalary || dbJob.salaryRange,
+    employmentType: (dbJob.employmentType || 'Full-time') as any,
+    experienceLevel: (dbJob.experienceLevel || 'Mid') as any,
+    isInternship: dbJob.isInternship === 1 || dbJob.isInternship === true,
+    companyType: (dbJob.companyType || 'Startup') as any,
+    companySizeTag: (dbJob.companySizeTag || 'Mid-size') as any,
+    companyTags: Array.isArray(dbJob.companyTags) ? dbJob.companyTags : [],
+    hiringPlatform: (dbJob.hiringPlatform || 'Direct') as any,
+    hiringPlatformUrl: dbJob.jobGoogleLink || dbJob.hiringPlatformUrl,
+    applicants: dbJob.applicants,
+    skills: Array.isArray(dbJob.skills) ? dbJob.skills : [],
+    source: dbJob.source || dbJob.publisher || 'n8n'
   }));
 
   allRawJobs = mappedDbJobs;
@@ -143,11 +151,12 @@ export async function fetchJobs(filter: JobFilter = {}, userContext?: UserContex
 
   const enrichedJobs: Job[] = allRawJobs.map((job) => {
     const daysSincePosted = getDaysSincePosted(job.postedAt);
-    const applicants = inferApplicants(daysSincePosted);
+    const applicants = job.applicants || inferApplicants(daysSincePosted);
     const roleLevel = inferRoleLevel(job.title);
-    const isInternship = roleLevel === "Intern" || job.title.toLowerCase().includes("intern") || job.employmentType === "Internship";
-    const companyType = inferCompanyType(job.company);
-    const companySizeTag = inferCompanySize(companyCounts[job.company] || 1);
+    // Check database isInternship field first, then fall back to title/type inference
+    const isInternship = job.isInternship || roleLevel === "Intern" || job.title.toLowerCase().includes("intern") || job.employmentType === "Internship";
+    const companyType = job.companyType || inferCompanyType(job.company);
+    const companySizeTag = job.companySizeTag || inferCompanySize(companyCounts[job.company] || 1);
 
     // 🔥 ANALYSIS LAYER (CORE LOGIC)
     const analysis = analyzeJob(
