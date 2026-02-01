@@ -2365,6 +2365,7 @@ export async function registerRoutes(
   app.post("/api/jobs/ingest", async (req, res) => {
     try {
       console.log("REQ BODY:", req.body);
+      const jobs = Array.isArray(req.body) ? req.body : [req.body];
       const bodyData = req.body;
 
       // Handle both single job object and array of jobs
