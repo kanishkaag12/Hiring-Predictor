@@ -3,8 +3,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { fetchJobSources } from "./services/jobSources.service";
 import { fetchJobs, aggregateMarketStats } from "./jobs/job.service";
-import { storage } from "./storage";
-import { User, insertJobSchema } from "@shared/schema";
+import { pool, storage } from "./storage";
+import { User } from "@shared/schema";
 import { ROLE_REQUIREMENTS } from "@shared/roles";
 import { IntelligenceService } from "./services/intelligence.service";
 import { AIService } from "./services/ai.service";
@@ -232,32 +232,44 @@ export async function registerRoutes(
   // ✅ INGESTED JOBS (from database via n8n) - MUST come before /:id route
   app.get("/api/jobs/ingested", async (req, res) => {
     try {
-      const jobs = await storage.getIngestedJobs();
-      
-      // Return only the specified fields
+      const jobs = await storage.getIngestedJobs() as Record<string, any>[];
+
       const ingestedJobs = jobs.map(job => ({
         id: job.id,
         title: job.title,
-        company: job.company,
-        location: job.location,
-        city: job.city,
-        state: job.state,
-        country: job.country,
-        apply_url: job.applyUrl,
-        source: job.source,
-        posted_at: job.postedAt,
+
+        company_website: job.company_website,
+        company_logo: job.company_logo,
+
+        apply_link: job.apply_link,
+        apply_is_direct: job.apply_is_direct,
+
+        job_description: job.job_description,
+        job_is_remote: job.job_is_remote,
+
+        job_posted_at: job.job_posted_at,
+        job_posted_at_timestamp: job.job_posted_at_timestamp,
+        job_posted_at_datetime_utc: job.job_posted_at_datetime_utc,
+
+        job_location: job.job_location,
+        job_city: job.job_city,
+        job_state: job.job_state,
+        job_country: job.job_country,
+
+        job_google_link: job.job_google_link,
+        job_salary: job.job_salary,
       }));
-      
+
       res.json({
         success: true,
         count: ingestedJobs.length,
-        jobs: ingestedJobs
+        jobs: ingestedJobs,
       });
     } catch (error) {
       console.error("Error fetching ingested jobs:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: "Failed to fetch ingested jobs" 
+        error: "Failed to fetch ingested jobs",
       });
     }
   });
@@ -2367,72 +2379,61 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid payload format" });
       }
 
-      // Validate required fields
-      for (const job of jobsToIngest) {
-        if (!job.title || !job.company || !job.apply_url) {
-          return res.status(400).json({ 
-            message: "Missing required fields: title, company, and apply_url are required",
-            received: job
-          });
-        }
-      }
-
-      const validatedJobs = [];
       const errors = [];
+      const createdJobs = [];
+      const requiredFields = ["id", "title", "apply_link"];
 
       for (let i = 0; i < jobsToIngest.length; i++) {
         const jobData = jobsToIngest[i];
+        const missingFields = requiredFields.filter(
+          field => jobData?.[field] === null || jobData?.[field] === undefined
+        );
 
-        // Map n8n field names to database schema
-        const processedData = {
-          title: jobData.title,
-          company: jobData.company,
-          location: jobData.location || jobData.city || jobData.country || 'Remote',
-          city: jobData.city,
-          state: jobData.state,
-          country: jobData.country,
-          employmentType: jobData.employment_type || jobData.employmentType || 'Full-time',
-          experienceLevel: jobData.experience_level || jobData.experienceLevel || 'Fresher',
-          salaryRange: jobData.salary_range || jobData.salaryRange || null,
-          skills: Array.isArray(jobData.skills) ? jobData.skills : [],
-          source: jobData.source || 'n8n-rapidapi',
-          postedAt: jobData.posted_at ? new Date(jobData.posted_at) : 
-                    jobData.postedAt ? new Date(jobData.postedAt) : new Date(),
-          applyUrl: jobData.apply_url || jobData.applyUrl,
-          isInternship: jobData.is_internship || jobData.isInternship ? 1 : 0,
-          hiringPlatform: jobData.hiring_platform || jobData.hiringPlatform || null,
-          hiringPlatformUrl: jobData.google_job_link || jobData.googleJobLink || jobData.hiringPlatformUrl || null,
-          companyType: jobData.company_type || jobData.companyType || null,
-          companySizeTag: jobData.company_size_tag || jobData.companySizeTag || null,
-          companyTags: jobData.company_tags || jobData.companyTags || null,
-          applicants: jobData.applicants || null
-        };
+        if (missingFields.length > 0) {
+          errors.push({
+            index: i,
+            message: "Missing required fields",
+            missing: missingFields,
+            received: jobData
+          });
+          continue;
+        }
 
-        const result = insertJobSchema.safeParse(processedData);
-        if (result.success) {
-          validatedJobs.push(result.data);
-        } else {
-          errors.push({ index: i, error: result.error.errors, data: jobData });
+        const columns = Object.keys(jobData || {});
+        if (columns.length === 0) {
+          errors.push({
+            index: i,
+            message: "Job payload is empty",
+            received: jobData
+          });
+          continue;
+        }
+
+        const values = columns.map((column) => jobData[column]);
+        const columnSql = columns.map((column) => `"${column}"`).join(", ");
+        const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(", ");
+
+        const insertResult = await pool.query(
+          `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO NOTHING RETURNING *`,
+          values
+        );
+
+        if (insertResult.rows.length > 0) {
+          createdJobs.push(insertResult.rows[0]);
         }
       }
 
-      if (validatedJobs.length === 0 && errors.length > 0) {
+      if (createdJobs.length === 0 && errors.length > 0) {
         return res.status(400).json({ 
           message: "No valid jobs found in payload", 
           details: errors 
         });
       }
 
-      // Database will handle duplicates via ON CONFLICT DO NOTHING
-      let createdJobs = [];
-      if (validatedJobs.length > 0) {
-        createdJobs = await storage.ingestJobs(validatedJobs);
-      }
-
       return res.status(201).json({
         success: true,
-        message: createdJobs.length > 0 
-          ? `Successfully ingested ${createdJobs.length} job(s)` 
+        message: createdJobs.length > 0
+          ? `Successfully ingested ${createdJobs.length} job(s)`
           : "Job already exists in database (duplicate)",
         count: createdJobs.length,
         errors: errors.length > 0 ? errors : undefined

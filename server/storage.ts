@@ -49,7 +49,7 @@ export interface IStorage {
   // Jobs
   getJobs(): Promise<Job[]>;
   getJob(id: string): Promise<Job | undefined>;
-  getIngestedJobs(): Promise<Job[]>;
+  getIngestedJobs(): Promise<Record<string, any>[]>;
   ingestJobs(jobs: InsertJob[]): Promise<Job[]>;
 }
 
@@ -307,10 +307,10 @@ class InMemoryStorage implements IStorage {
     return this.jobs.get(id);
   }
 
-  async getIngestedJobs(): Promise<Job[]> {
+  async getIngestedJobs(): Promise<Record<string, any>[]> {
     return Array.from(this.jobs.values()).sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    ) as unknown as Record<string, any>[];
   }
 
   async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
@@ -624,34 +624,11 @@ export class PostgresStorage implements IStorage {
     }
   }
 
-  async getIngestedJobs(): Promise<Job[]> {
+  async getIngestedJobs(): Promise<Record<string, any>[]> {
     try {
       if (useMemoryStorage || !db) return [];
       return await db
-        .select({
-          id: jobs.id,
-          title: jobs.title,
-          company: jobs.company,
-          location: jobs.location,
-          city: jobs.city,
-          state: jobs.state,
-          country: jobs.country,
-          applyUrl: jobs.applyUrl,
-          source: jobs.source,
-          postedAt: jobs.postedAt,
-          employmentType: jobs.employmentType,
-          experienceLevel: jobs.experienceLevel,
-          salaryRange: jobs.salaryRange,
-          skills: jobs.skills,
-          companyType: jobs.companyType,
-          companySizeTag: jobs.companySizeTag,
-          companyTags: jobs.companyTags,
-          isInternship: jobs.isInternship,
-          hiringPlatform: jobs.hiringPlatform,
-          hiringPlatformUrl: jobs.hiringPlatformUrl,
-          applicants: jobs.applicants,
-          createdAt: jobs.createdAt,
-        })
+        .select()
         .from(jobs)
         .orderBy(desc(jobs.createdAt));
     } catch (error) {
