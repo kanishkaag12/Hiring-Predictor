@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { JobWhatIfSimulator } from "./JobWhatIfSimulator";
 import { useProfile } from "@/hooks/useProfile";
+import { useCurrentUser } from "@/hooks/useAuth";
 
 interface AnalysisModalProps {
     isOpen: boolean;
@@ -19,17 +20,52 @@ interface AnalysisModalProps {
 
 export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
     const [stage, setStage] = useState<"analyzing" | "complete">("analyzing");
+    const [mlPrediction, setMlPrediction] = useState<any>(null);
+    const [mlLoading, setMlLoading] = useState(false);
     const { profile } = useProfile();
+    const { data: user } = useCurrentUser();
 
+    // Fetch ML prediction when modal opens
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && user?.id && job?.id) {
             setStage("analyzing");
-            const timer = setTimeout(() => {
-                setStage("complete");
-            }, 2500); // 2.5s delay for "intelligence" feel
-            return () => clearTimeout(timer);
+            setMlLoading(true);
+            
+            // Call the ML API for real prediction
+            fetch('/api/shortlist/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    userId: user.id,
+                    jobId: job.id
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log('[ML Prediction] Received:', data);
+                setMlPrediction(data.prediction);
+                setMlLoading(false);
+                // Show results after brief delay for UX
+                setTimeout(() => setStage("complete"), 1500);
+            })
+            .catch(error => {
+                console.error('[ML Prediction] Error:', error);
+                setMlLoading(false);
+                // Fall back to old analysis if ML fails
+                setTimeout(() => setStage("complete"), 1500);
+            });
+        } else if (isOpen) {
+            // No user or job, show old analysis
+            setStage("analyzing");
+            setTimeout(() => setStage("complete"), 2500);
         }
-    }, [isOpen]);
+    }, [isOpen, user?.id, job?.id]);
+
+    // Use ML prediction if available, otherwise fall back to old analysis
+    const probability = mlPrediction
+        ? mlPrediction.shortlistProbability
+        : job.analysis.probability;
 
     // Helper function to interpret score and generate microcopy
     const getScoreInterpretation = (probability: number) => {
@@ -93,7 +129,7 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
         return "🟢 Strong";
     };
 
-    const scoreData = getScoreInterpretation(job.analysis.probability);
+    const scoreData = getScoreInterpretation(probability);
     const weakestFactor = getWeakestFactor();
 
     return (
@@ -146,7 +182,13 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                         className={`bg-linear-to-br ${scoreData.color} border-2 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4 w-full`}
                                     >
                                         <div className="text-2xl font-black text-primary uppercase tracking-widest">YOUR SHORTLIST SCORE</div>
-                                        <div className="text-7xl font-black text-primary">{job.analysis.probability}%</div>
+                                        <div className="text-7xl font-black text-primary">
+                                            {mlLoading ? (
+                                                <span className="animate-pulse">...</span>
+                                            ) : (
+                                                `${probability}%`
+                                            )}
+                                        </div>
                                         
                                         <div className="space-y-2 pt-4">
                                             <div className="text-xl font-bold text-foreground">
@@ -160,12 +202,20 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                             </p>
                                         </div>
 
+                                        {/* ML Prediction Details */}
+                                        {mlPrediction && (
+                                            <div className="pt-4 text-xs text-muted-foreground flex items-center gap-2">
+                                                <Zap className="w-3 h-3" />
+                                                <span>Powered by Machine Learning (RandomForest + SBERT)</span>
+                                            </div>
+                                        )}
+
                                         {/* Benchmark Context */}
                                         <div className="pt-6 border-t border-primary/30 w-full space-y-2">
                                             <div className="text-xs text-muted-foreground">Context</div>
                                             <div className="flex justify-around text-sm">
                                                 <div>
-                                                    <div className="font-bold text-foreground">{job.analysis.probability}%</div>
+                                                    <div className="font-bold text-foreground">{probability}%</div>
                                                     <div className="text-xs text-muted-foreground">Your Score</div>
                                                 </div>
                                                 <div>
@@ -180,8 +230,30 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                         </div>
                                     </motion.div>
 
-                                    {/* Biggest Gap - Diagnostic Section */}
-                                    {weakestFactor && (
+                                    {/* Biggest Gap - ML-Driven Diagnostic Section */}
+                                    {mlPrediction?.improvements && mlPrediction.improvements.length > 0 ? (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="bg-linear-to-br from-orange-500/20 to-orange-500/5 border-2 border-orange-500/50 rounded-2xl p-6 space-y-4"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <AlertCircle className="w-5 h-5 text-orange-600" />
+                                                <h3 className="font-bold text-lg">What's Holding You Back</h3>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {mlPrediction.improvements.map((improvement, idx) => (
+                                                    <div key={idx} className="flex gap-3 items-start">
+                                                        <Zap className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                                                        <span className="text-sm">{improvement}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="pt-4 border-t border-orange-500/30 text-sm text-muted-foreground">
+                                                💡 These suggestions are based on ML analysis of your profile vs. job requirements
+                                            </div>
+                                        </motion.div>
+                                    ) : weakestFactor && (
                                         <motion.div
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -218,8 +290,34 @@ export function AnalysisModal({ isOpen, onClose, job }: AnalysisModalProps) {
                                         </motion.div>
                                     )}
 
-                                    {/* Analysis Breakdown - 4 Pillar Scores */}
-                                    {job.analysis.factors && (
+                                    {/* Analysis Breakdown - ML-Driven Scores */}
+                                    {mlPrediction ? (
+                                        <div className="space-y-8">
+                                            <div>
+                                                <h3 className="text-2xl font-bold mb-3 flex items-center gap-3">
+                                                    <TrendingUp className="w-7 h-7 text-primary" />
+                                                    Full Score Breakdown
+                                                </h3>
+                                                <p className="text-base text-muted-foreground">ML-powered analysis of your profile</p>
+                                            </div>
+                                            <div className="grid md:grid-cols-2 gap-6">
+                                                <Card
+                                                    title="Candidate Strength"
+                                                    value={`${mlPrediction.candidateStrength}%`}
+                                                    desc="RandomForest prediction of your profile quality"
+                                                    icon={<Briefcase className="w-6 h-6" />}
+                                                    highlight={mlPrediction.candidateStrength > 50}
+                                                />
+                                                <Card
+                                                    title="Job Match"
+                                                    value={`${mlPrediction.jobMatchScore}%`}
+                                                    desc="SBERT similarity: your skills vs job requirements"
+                                                    icon={<Activity className="w-6 h-6" />}
+                                                    highlight={mlPrediction.jobMatchScore > 50}
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : job.analysis.factors && (
                                         <div className="space-y-8">
                                             <div>
                                                 <h3 className="text-2xl font-bold mb-3 flex items-center gap-3">

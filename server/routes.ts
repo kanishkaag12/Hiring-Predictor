@@ -11,6 +11,8 @@ import { AIService } from "./services/ai.service";
 import { AISimulationService } from "./services/ai-simulation.service";
 import { SkillRoleMappingService } from "./services/skill-role-mapping.service";
 import { getRolePredictor } from "./services/ml/role-predictor.service";
+import { ShortlistProbabilityService } from "./services/ml/shortlist-probability.service";
+import { registerShortlistRoutes } from "./api/shortlist-probability.routes";
 import { findPythonExecutable, type ParsedResumeData } from "./services/resume-parser.service";
 import multer from "multer";
 import path from "path";
@@ -190,6 +192,17 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   log("Inside registerRoutes", "system");
+
+  // Initialize ML services
+  try {
+    await ShortlistProbabilityService.initialize();
+    console.log('✓ Shortlist Probability Service initialized');
+  } catch (error) {
+    console.warn('⚠️  Shortlist Probability Service initialization failed, feature will be unavailable:', error);
+  }
+
+  // Register shortlist probability routes
+  registerShortlistRoutes(app);
 
   app.get("/api/job-sources", (_req, res) => {
     const sources = fetchJobSources();
@@ -2393,7 +2406,7 @@ export async function registerRoutes(
 
         try {
           const insertResult = await pool.query(
-            `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO NOTHING RETURNING *`,
+            `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO UPDATE SET job_description = EXCLUDED.job_description RETURNING *`,
             values
           );
 
