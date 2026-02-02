@@ -26,7 +26,7 @@ An AI-powered hiring assistant that uses machine learning to predict candidate f
 - **TypeScript** 5.6.3 - Type-safe backend development
 - **Drizzle ORM** 0.39.3 - Type-safe database ORM
 - **PostgreSQL** - Primary database (via Neon)
-- **Google Generative AI** 0.24.1 - AI-powered analysis and predictions
+- **Google Generative AI** - AI-powered analysis and predictions
 - **Passport.js** - Authentication middleware
 
 ### Additional Tools
@@ -39,21 +39,11 @@ An AI-powered hiring assistant that uses machine learning to predict candidate f
 
 ## 📋 Prerequisites
 
-Before you begin, ensure you have the following installed on your system:
-
-### Required Software
-- **Node.js** version 18 or higher ([Download](https://nodejs.org/))
-- **npm** (comes with Node.js) or **yarn**
-- **Python** 3.8 or higher ([Download](https://www.python.org/downloads/))
-- **Git** ([Download](https://git-scm.com/downloads))
-
-### Required Accounts & Services
-- **PostgreSQL Database** - Get a free database from [Neon](https://neon.tech/) (recommended) or use local PostgreSQL
-- **Google Cloud Console** - For Google OAuth and Gemini AI API ([Console](https://console.cloud.google.com/))
-- **GitHub Developer Settings** - For GitHub OAuth (optional) ([Settings](https://github.com/settings/developers))
-- **Resend Account** - For password reset emails ([Sign up](https://resend.com/))
-
----
+- **Node.js** 18+ and npm
+- **Python** 3.8+ (for resume parsing)
+- **PostgreSQL** database (or Neon serverless PostgreSQL)
+- **Google API Key** (for Gemini AI features)
+- **Resend API Key** (for email services)
 
 ## 🚀 Complete Installation Guide
 
@@ -119,107 +109,41 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-2. **Edit `.env` file with your credentials:**
+Fill in required variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - GitHub OAuth credentials
+- `EMAIL_PASS` - Resend API key (for password reset emails)
+- `SESSION_SECRET` - Secure random string for session management
 
-```env
-# Database (Required)
-DATABASE_URL=postgresql://user:password@host.neon.tech/database?sslmode=require
+### 3. Set Up Python Virtual Environment
+Create and activate a Python virtual environment:
 
-# Google OAuth (Required for login)
-GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-
-# GitHub OAuth (Optional)
-GITHUB_CLIENT_ID=your_github_client_id_here
-GITHUB_CLIENT_SECRET=your_github_client_secret_here
-
-# Session Secret (Required - generate a random string)
-SESSION_SECRET=your_super_secret_random_string_min_32_chars
-
-# Email Configuration (Required for password reset)
-EMAIL_HOST=smtp.resend.com
-EMAIL_PORT=465
-EMAIL_USER=resend
-EMAIL_PASS=re_YourResendAPIKey
-EMAIL_FROM=onboarding@resend.dev
-
-# Base URL (Update for production)
-APP_BASE_URL=http://localhost:5000
-NODE_ENV=development
-PORT=3001
-```
-
-### Step 6: Get Required API Keys
-
-#### 6.1 PostgreSQL Database (Neon - Recommended)
-
-1. Go to [Neon Console](https://console.neon.tech/)
-2. Create a new project
-3. Copy the connection string
-4. Paste it as `DATABASE_URL` in `.env`
-
-**Format:** `postgresql://user:password@host.neon.tech/database?sslmode=require`
-
-#### 6.2 Google OAuth & Gemini AI
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. **Enable APIs:**
-   - Google+ API (for OAuth)
-   - Generative Language API (for Gemini AI)
-4. **Create OAuth 2.0 Credentials:**
-   - Go to Credentials → Create Credentials → OAuth 2.0 Client ID
-   - Application type: Web application
-   - Authorized redirect URIs: `http://localhost:5000/api/auth/google/callback`
-   - Copy Client ID and Client Secret to `.env`
-
-#### 6.3 Resend API Key (Email Service)
-
-1. Go to [Resend](https://resend.com/)
-2. Sign up and verify your email
-3. Go to API Keys → Create API Key
-4. Copy the key (starts with `re_`)
-5. Paste as `EMAIL_PASS` in `.env`
-
-#### 6.4 Session Secret
-
-Generate a secure random string (32+ characters):
-
-**Windows (PowerShell):**
-```powershell
--join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_})
+**Windows:**
+```bash
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 ```
 
 **macOS/Linux:**
 ```bash
-openssl rand -base64 32
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-### Step 7: Set Up Database Schema
+### 4. Install Python Dependencies
+With the virtual environment activated:
+```bash
+pip install -r scripts/resume-parser/resume_parser_requirements.txt
+```
 
-Run database migrations to create all necessary tables:
-
+### 5. Set Up Database
 ```bash
 npm run db:push
 npm run db:migrate
 ```
 
-This creates tables for:
-- Users and authentication
-- Jobs and applications
-- Resumes and parsed data
-- Predictions and analytics
-
-### Step 8: Verify Installation
-
-Check for any TypeScript errors:
-
-```bash
-npm run check
-```
-
-### Step 9: Start Development Server
-
+### 6. Start Development Server
 ```bash
 npm run dev
 ```
@@ -601,8 +525,6 @@ See [DEPLOYMENT_GUIDE.md](project-docs/DEPLOYMENT_GUIDE.md) for detailed instruc
 ## 📝 License
 
 MIT License
-
----
 
 ## 🤝 Contributing
 
