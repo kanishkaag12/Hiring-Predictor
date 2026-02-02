@@ -27,10 +27,11 @@ An AI-powered hiring assistant that uses machine learning to predict candidate f
 - **Drizzle ORM** - Type-safe database ORM
 - **PostgreSQL** - Primary database (via Neon)
 - **Google Generative AI** - AI-powered analysis and predictions
+- **Passport.js** - Authentication middleware
 
 ### Additional Tools
 - **Multer** - File upload handling
-- **SendGrid** - Email service
+- **Resend** - Email service for password resets
 - **Docker** - Containerization
 - **Vercel** - Deployment platform
 
@@ -40,7 +41,7 @@ An AI-powered hiring assistant that uses machine learning to predict candidate f
 - **Python** 3.8+ (for resume parsing)
 - **PostgreSQL** database (or Neon serverless PostgreSQL)
 - **Google API Key** (for Gemini AI features)
-- **SendGrid API Key** (for email services)
+- **Resend API Key** (for email services)
 
 ## 🚀 Quick Start
 
@@ -59,9 +60,10 @@ cp .env.example .env
 
 Fill in required variables:
 - `DATABASE_URL` - PostgreSQL connection string
-- `GOOGLE_API_KEY` - Google Generative AI API key
-- `SENDGRID_API_KEY` - SendGrid API key
-- Other OAuth and authentication credentials
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth credentials
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` - GitHub OAuth credentials
+- `EMAIL_PASS` - Resend API key (for password reset emails)
+- `SESSION_SECRET` - Secure random string for session management
 
 ### 3. Set Up Database
 ```bash
@@ -71,7 +73,7 @@ npm run db:migrate
 
 ### 4. Install Python Dependencies
 ```bash
-pip install -r resume_parser_requirements.txt
+pip install -r scripts/resume-parser/resume_parser_requirements.txt
 ```
 
 ### 5. Start Development Server
@@ -124,6 +126,11 @@ npm run check          # Run TypeScript type checking
 ### `/python` - Machine Learning
 - Resume parser implementation
 - AI models and inference logic
+
+### `/scripts` - Utility Scripts
+- Resume parser utilities
+- Database migration scripts
+- Test scripts
 
 ### `/project-docs` - Documentation
 - Implementation guides
@@ -229,7 +236,7 @@ See [DEPLOYMENT_GUIDE.md](project-docs/DEPLOYMENT_GUIDE.md) for detailed instruc
 
 ## 📝 License
 
-MIT License - See LICENSE file for details
+MIT License
 
 ## 🤝 Contributing
 
