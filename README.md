@@ -65,18 +65,34 @@ Fill in required variables:
 - `EMAIL_PASS` - Resend API key (for password reset emails)
 - `SESSION_SECRET` - Secure random string for session management
 
-### 3. Set Up Database
+### 3. Set Up Python Virtual Environment
+Create and activate a Python virtual environment:
+
+**Windows:**
+```bash
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**macOS/Linux:**
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 4. Install Python Dependencies
+With the virtual environment activated:
+```bash
+pip install -r scripts/resume-parser/resume_parser_requirements.txt
+```
+
+### 5. Set Up Database
 ```bash
 npm run db:push
 npm run db:migrate
 ```
 
-### 4. Install Python Dependencies
-```bash
-pip install -r scripts/resume-parser/resume_parser_requirements.txt
-```
-
-### 5. Start Development Server
+### 6. Start Development Server
 ```bash
 npm run dev
 ```
