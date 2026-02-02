@@ -54,13 +54,17 @@ export class ShortlistProbabilityService {
 
       // Verify model files exist
       if (!fs.existsSync(this.modelPath)) {
-        throw new Error(`❌ CRITICAL: placement_random_forest_model.pkl not found at ${this.modelPath}`);
+        console.warn(`⚠️  Model file not found: ${this.modelPath}`);
+        console.warn('⚠️  ML predictions will not be available. Run model training to generate the file.');
+        return;
       }
       console.log(`✓ Found model file: ${this.modelPath}`);
 
       // Verify Python script exists
       if (!fs.existsSync(this.pythonScript)) {
-        throw new Error(`❌ CRITICAL: Python script not found at ${this.pythonScript}`);
+        console.warn(`⚠️  Python script not found: ${this.pythonScript}`);
+        console.warn('⚠️  ML predictions will not be available.');
+        return;
       }
       console.log(`✓ Found Python script: ${this.pythonScript}`);
 
