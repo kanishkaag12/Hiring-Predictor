@@ -2406,7 +2406,7 @@ export async function registerRoutes(
 
         try {
           const insertResult = await pool.query(
-            `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO NOTHING RETURNING *`,
+            `INSERT INTO jobs (${columnSql}) VALUES (${placeholders}) ON CONFLICT ("id") DO UPDATE SET job_description = EXCLUDED.job_description RETURNING *`,
             values
           );
 

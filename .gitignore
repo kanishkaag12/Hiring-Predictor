@@ -48,6 +48,21 @@ tmp/
 
 # Database
 *.db
+
+# ML Models and Data (too large for git)
+*.pkl
+*.h5
+*.joblib
+*.model
+models/*.pkl
+models/*.h5
+job_embeddings.pkl
+job_texts.pkl
+placement_random_forest_model.pkl
+
+# Large assets
+attached_assets/generated_images/*.png
+attached_assets/generated_images/*.jpg
 *.sqlite
 *.sqlite3
 
