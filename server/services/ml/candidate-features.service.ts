@@ -48,8 +48,15 @@ export interface CandidateFeatures {
 export class CandidateFeaturesService {
   /**
    * Extract features from candidate profile
+   * ✅ MANDATORY FIX: Validates that resume features are included
    */
   static extractFeatures(profile: CandidateProfile): CandidateFeatures {
+    // ✅ MANDATORY FIX 3: Log skill merging before feature extraction
+    console.log(`[ML] ========== FEATURE EXTRACTION ==========`);
+    console.log(`[ML] Total skills for feature extraction: ${(profile.skills || []).length}`);
+    console.log(`[ML] Total experience for RF: ${profile.experienceMonths} months`);
+    console.log(`[ML] Total projects for RF: ${profile.projectsCount}`);
+    
     const skillFeatures = this.extractSkillFeatures(profile.skills || []);
     const experienceFeatures = this.extractExperienceFeatures(
       profile.experience || [],
@@ -90,6 +97,14 @@ export class CandidateFeaturesService {
 
     // Calculate overall strength score (weighted combination)
     features.overallStrengthScore = this.calculateStrengthScore(features);
+
+    // ✅ MANDATORY FIX 4: Log extracted features
+    console.log(`[ML] ✅ Features extracted:`);
+    console.log(`[ML]   - Skills: ${features.skillCount} (advanced: ${features.advancedSkillCount}, intermediate: ${features.intermediateSkillCount}, beginner: ${features.beginnerSkillCount})`);
+    console.log(`[ML]   - Experience: ${features.totalExperienceMonths} months`);
+    console.log(`[ML]   - Projects: ${features.projectCount}`);
+    console.log(`[ML]   - Education: Level ${features.educationLevel}, CGPA: ${(features.cgpa * 10).toFixed(1)}/10`);
+    console.log(`[ML] ========== END FEATURE EXTRACTION ==========`);
 
     return features;
   }
@@ -153,11 +168,14 @@ export class CandidateFeaturesService {
   private static extractEducationFeatures(
     education: Array<{ degree?: string; cgpa?: number }>,
     userType?: string,
-    profileCgpa?: number
+    profileCgpa?: number | null
   ): Partial<CandidateFeatures> {
     let educationLevel = 0;
     let hasQualifyingEducation = 0;
-    let cgpa = 0;
+    // ✅ FIX 2: Use dataset mean (7.0/10 = 0.7) instead of hard 0
+    // Hard-coding to 0 biases model towards poor performance
+    const DATASET_MEAN_CGPA = 0.7; // Typical placement dataset mean
+    let cgpa = DATASET_MEAN_CGPA; // Start with mean, not 0
 
     // Check explicitly provided education
     if (education && education.length > 0) {
@@ -185,8 +203,8 @@ export class CandidateFeaturesService {
       }
     }
     
-    // Use profile CGPA if available
-    if (profileCgpa && profileCgpa > 0) {
+    // ✅ Use profile CGPA if available (overwrites education CGPA)
+    if (profileCgpa !== null && profileCgpa !== undefined && profileCgpa > 0) {
       cgpa = profileCgpa / 10; // Normalize to 0-1
     }
 
@@ -203,7 +221,7 @@ export class CandidateFeaturesService {
     return {
       educationLevel,
       hasQualifyingEducation,
-      cgpa,
+      cgpa, // Will be dataset mean if not found (not 0)
     };
   }
 

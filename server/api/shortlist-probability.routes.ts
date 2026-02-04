@@ -6,11 +6,14 @@
  * POST /api/shortlist/batch - Batch predictions for multiple jobs
  * POST /api/shortlist/what-if - What-If simulation
  * GET /api/shortlist/recommendations/:jobId - Get recommendations for improvement
+ * GET /api/shortlist/history/:userId - Get prediction history
+ * GET /api/shortlist/analytics/:userId - Get user analytics
  */
 
 import type { Router } from 'express';
 import { ShortlistProbabilityService } from '../services/ml/shortlist-probability.service';
 import { WhatIfSimulatorService } from '../services/ml/what-if-simulator.service';
+import { ShortlistPredictionStorage } from '../services/ml/shortlist-prediction-storage.service';
 import type {
   ShortlistPredictionRequest,
   ShortlistPredictionResponse,
@@ -27,6 +30,7 @@ export function registerShortlistRoutes(router: Router) {
   /**
    * POST /api/shortlist/predict
    * Predict shortlist probability for a specific job
+   * ✅ MANDATORY FIX 1: STRICT job_id handling
    * ALWAYS FRESH PREDICTION - NO CACHING
    * 
    * Body: { jobId: string, userId: string }
@@ -34,16 +38,24 @@ export function registerShortlistRoutes(router: Router) {
    */
   router.post('/api/shortlist/predict', async (req, res) => {
     try {
-      const { jobId, userId } = req.body as ShortlistPredictionRequest;
+      const { jobId, userId, resumeId } = req.body as ShortlistPredictionRequest;
 
-      console.log(`[API] ⚡ Analyze My Chances triggered: user=${userId}, job=${jobId}`);
+      console.log(`\n[API] ========== SHORTLIST PREDICTION REQUEST ==========`);
+      console.log(`[API] ⚡ "Analyze My Chances" button clicked`);
+      console.log(`[API] INPUT: user_id + job_id`);
+      console.log(`[API] user_id = ${userId}`);
+      console.log(`[API] resume_id = ${resumeId || userId}`);
+      console.log(`[API] job_id = ${jobId}`);
 
       // Validate input
       if (!jobId || !userId) {
+        console.error('[API] ❌ VALIDATION FAILED: Missing required fields');
         return res.status(400).json({
           error: 'Missing required fields: jobId, userId',
         });
       }
+
+      console.log(`[API] ✅ INPUT VALIDATION PASSED`);
 
       // Check if service is initialized
       if (!ShortlistProbabilityService.isReady()) {
@@ -54,12 +66,27 @@ export function registerShortlistRoutes(router: Router) {
         });
       }
 
-      console.log('[API] ✓ ML service ready - running fresh prediction');
+      console.log('[API] ✅ ML service is ready');
+      console.log(`[API] 🔒 MANDATORY FIX 1: Fetching job by STRICT job_id = ${jobId}`);
+      console.log(`[API] RULE: Do NOT reuse previous job, do NOT use cached job, do NOT default to first job`);
 
-      // Get prediction - FRESH COMPUTATION
-      const prediction = await ShortlistProbabilityService.predict(userId, jobId);
+      // Get prediction - FRESH COMPUTATION with job_id
+      const prediction = await ShortlistProbabilityService.predict(userId, jobId, resumeId);
 
-      console.log(`[API] ✅ Prediction complete: ${prediction.shortlistProbability}% (strength=${prediction.candidateStrength}%, match=${prediction.jobMatchScore}%)`);
+      console.log(`[API] ✅ Prediction complete`);
+      console.log(`[API]    Shortlist Probability: ${prediction.shortlistProbability}%`);
+      console.log(`[API]    Candidate Strength: ${prediction.candidateStrength}%`);
+      console.log(`[API]    Job Match Score: ${prediction.jobMatchScore}%`);
+      console.log(`[API] ===================================================`);
+
+      // Store prediction for analytics and history
+      try {
+        await ShortlistPredictionStorage.storePrediction(userId, prediction);
+        console.log(`[API] ✓ Prediction stored for user=${userId}, job=${jobId}`);
+      } catch (storageError) {
+        console.warn('[API] ⚠️ Failed to store prediction:', storageError);
+        // Don't fail the response if storage fails - prediction is still valid
+      }
 
       const response: ShortlistPredictionResponse = {
         prediction,
@@ -83,7 +110,7 @@ export function registerShortlistRoutes(router: Router) {
    */
   router.post('/api/shortlist/batch', async (req, res) => {
     try {
-      const { userId, jobIds } = req.body as BatchShortlistPredictionRequest;
+      const { userId, jobIds, resumeId } = req.body as BatchShortlistPredictionRequest;
 
       // Validate input
       if (!userId || !jobIds || jobIds.length === 0) {
@@ -106,7 +133,7 @@ export function registerShortlistRoutes(router: Router) {
       }
 
       // Get predictions
-      const predictions = await ShortlistProbabilityService.predictBatch(userId, jobIds);
+      const predictions = await ShortlistProbabilityService.predictBatch(userId, jobIds, resumeId);
 
       const response: BatchShortlistPredictionResponse = {
         predictions,
@@ -169,6 +196,15 @@ export function registerShortlistRoutes(router: Router) {
       const result = await WhatIfSimulatorService.simulate(userId, jobId, scenario);
 
       console.log(`[API] ✅ What-If complete: ${result.baselineShortlistProbability}% → ${result.projectedShortlistProbability}% (Δ${result.probabilityDelta > 0 ? '+' : ''}${result.probabilityDelta}%)`);
+
+      // Store what-if result for analytics
+      try {
+        await ShortlistPredictionStorage.storeWhatIfResult(userId, result);
+        console.log(`[API] ✓ What-If scenario stored for user=${userId}, job=${jobId}`);
+      } catch (storageError) {
+        console.warn('[API] ⚠️ Failed to store what-if result:', storageError);
+        // Don't fail the response if storage fails
+      }
 
       const response: WhatIfSimulationResponse = {
         result,
@@ -314,6 +350,72 @@ export function registerShortlistRoutes(router: Router) {
       res.json(optimalSkills);
     } catch (error: any) {
       console.error('Error finding optimal skills:', error);
+      res.status(500).json({
+        error: error.message || 'Internal server error',
+      });
+    }
+  });
+
+  /**
+   * GET /api/shortlist/history/:userId
+   * Get prediction history for a user
+   * 
+   * Query: { limit?: number }
+   * Response: { predictions: StoredPrediction[] }
+   */
+  router.get('/api/shortlist/history/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { limit } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({
+          error: 'Missing required parameter: userId',
+        });
+      }
+
+      const limitNum = limit ? parseInt(limit as string, 10) : 50;
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({
+          error: 'limit must be a number between 1 and 100',
+        });
+      }
+
+      const predictions = await ShortlistPredictionStorage.getPredictionHistory(
+        userId,
+        limitNum
+      );
+
+      res.json({ predictions });
+    } catch (error: any) {
+      console.error('Error fetching prediction history:', error);
+      res.status(500).json({
+        error: error.message || 'Internal server error',
+      });
+    }
+  });
+
+  /**
+   * GET /api/shortlist/analytics/:userId
+   * Get prediction analytics for a user
+   * 
+   * Response: { analytics }
+   */
+  router.get('/api/shortlist/analytics/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!userId) {
+        return res.status(400).json({
+          error: 'Missing required parameter: userId',
+        });
+      }
+
+      const analytics = await ShortlistPredictionStorage.getAnalytics(userId);
+
+      res.json({ analytics });
+    } catch (error: any) {
+      console.error('Error fetching analytics:', error);
       res.status(500).json({
         error: error.message || 'Internal server error',
       });

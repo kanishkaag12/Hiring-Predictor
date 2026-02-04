@@ -21,11 +21,14 @@ export interface JobMatchResult {
   matchedSkills: string[]; // Skills that matched
   missingSkills: string[]; // Required skills not present
   weakSkills: string[]; // Skills present but at beginner level
+  semanticSimilarity?: number; // Raw semantic similarity after adjustments
+  embeddingFallbackUsed?: boolean; // Whether TF-IDF fallback was used
 }
 
 /**
  * Final shortlist probability prediction
  * Combines candidate strength × job match score
+ * ✅ STRICT DETERMINISTIC OUTPUT - includes validation metadata
  */
 export interface ShortlistPrediction {
   jobId: string;
@@ -38,6 +41,21 @@ export interface ShortlistPrediction {
   weakSkills: string[];
   improvements?: string[]; // ML-driven improvement suggestions
   timestamp: Date;
+  // ✅ MANDATORY FIELDS for strict validation
+  jobDescriptionHash: string; // SHA256 hash of full job description
+  embeddingSource: 'fresh' | 'cache'; // Whether embeddings were computed fresh or from cache
+  status: 'success' | 'fallback'; // Prediction status
+  explanation?: string; // Job-specific reasoning for the score
+
+  // ✅ STRICT OUTPUT FORMAT (snake_case)
+  user_id: string;
+  resume_id: string;
+  job_id: string;
+  shortlist_probability: number;
+  candidate_strength: number;
+  job_match_score: number;
+  domain_match: 'strong' | 'moderate' | 'weak';
+  confidence_reasoning: string;
 }
 
 /**
@@ -127,6 +145,7 @@ export interface CandidateProfile {
 export interface ShortlistPredictionRequest {
   jobId: string;
   userId: string;
+  resumeId?: string;
 }
 
 /**
@@ -162,6 +181,7 @@ export interface WhatIfSimulationResponse {
 export interface BatchShortlistPredictionRequest {
   userId: string;
   jobIds: string[];
+  resumeId?: string;
 }
 
 /**

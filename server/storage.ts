@@ -51,6 +51,7 @@ export interface IStorage {
   getJob(id: string): Promise<Job | undefined>;
   getIngestedJobs(): Promise<Record<string, any>[]>;
   ingestJobs(jobs: InsertJob[]): Promise<Job[]>;
+  updateJob(id: string, update: Partial<Job>): Promise<Job>;
 }
 
 // ====================
@@ -82,8 +83,9 @@ console.log(`[storage] Database URL configured to: ${dbHost}`);
 export const pool = new Pool({
   connectionString: DATABASE_URL,
   max: 20,                      // Increased pool size for concurrent requests
-  idleTimeoutMillis: 60000,     // Keep connections alive for 60s to reduce cold starts
-  connectionTimeoutMillis: 5000, // 5s timeout for connection attempts
+  idleTimeoutMillis: 120000,    // Keep connections alive for 120s (2 minutes)
+  connectionTimeoutMillis: 30000, // 30s timeout for connection attempts (handles Neon wake-up)
+  query_timeout: 30000,         // 30s timeout for queries
   keepAlive: true,              // Enable TCP keepalive to maintain connections
   keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
   ssl: {
@@ -345,6 +347,15 @@ class InMemoryStorage implements IStorage {
       createdJobs.push(job);
     }
     return createdJobs;
+  }
+
+  async updateJob(id: string, update: Partial<Job>): Promise<Job> {
+    const existing = this.jobs.get(id);
+    if (!existing) throw new Error(`Job ${id} not found`);
+    
+    const updated = { ...existing, ...update };
+    this.jobs.set(id, updated);
+    return updated;
   }
 }
 
@@ -637,6 +648,27 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+  async updateJob(id: string, update: Partial<Job>): Promise<Job> {
+    try {
+      if (useMemoryStorage || !db) throw new Error("Database not available");
+      
+      const result = await db
+        .update(jobs)
+        .set(update)
+        .where(eq(jobs.id, id))
+        .returning();
+      
+      if (!result || result.length === 0) {
+        throw new Error(`Job ${id} not found`);
+      }
+      
+      return result[0];
+    } catch (error) {
+      console.error("Database error in updateJob:", error);
+      throw error;
+    }
+  }
+
   async ingestJobs(insertJobs: InsertJob[]): Promise<Job[]> {
     try {
       if (useMemoryStorage || !db) throw new Error("Database not available");
@@ -691,25 +723,45 @@ let isHealthy = false;
  * Test database connectivity and log results.
  * Returns true if database is reachable, false otherwise.
  * Logs detailed error information for debugging.
+ * Implements retry logic for Neon database wake-up scenarios.
  */
-export async function testDatabaseConnection(): Promise<boolean> {
+export async function testDatabaseConnection(maxRetries: number = 3): Promise<boolean> {
   if (useMemoryStorage) {
     console.log("[storage] Using in-memory storage, skipping database health check");
     isHealthy = true;
     return true;
   }
 
-  try {
-    console.log(`[storage] Testing database connection to ${dbHost}...`);
-    const client = await pool.connect();
-    await client.query("SELECT NOW()");
-    client.release();
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[storage] Testing database connection to ${dbHost}... (Attempt ${attempt}/${maxRetries})`);
+      const client = await pool.connect();
+      await client.query("SELECT NOW()");
+      client.release();
 
-    console.log("[storage] ✓ Database connection successful");
-    isHealthy = true;
-    lastConnectionError = null;
-    return true;
-  } catch (err) {
+      console.log("[storage] ✓ Database connection successful");
+      isHealthy = true;
+      lastConnectionError = null;
+      return true;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      
+      // If this isn't the last attempt and it's a timeout, wait before retrying
+      if (attempt < maxRetries) {
+        const waitTime = attempt * 3000; // 3s, 6s backoff
+        console.warn(`[storage] Connection attempt ${attempt} failed, retrying in ${waitTime/1000}s...`);
+        console.warn(`[storage] Reason: ${lastError.message}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+    }
+  }
+
+  // All retries failed
+  if (lastError) {
+    const err = lastError;
     isHealthy = false;
     lastConnectionError = err instanceof Error ? err : new Error(String(err));
 
