@@ -9,16 +9,68 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+/**
+ * ✅ STRUCTURED RESUME DATA INTERFACE
+ * Matches the new Python parser output format
+ */
 export interface ParsedResumeData {
-  skills: string[];
+  // ✅ Categorized technical skills (clean, normalized)
+  technical_skills: string[];
+  programming_languages: string[];
+  frameworks_libraries: string[];
+  tools_platforms: string[];
+  databases: string[];
+  
+  // ✅ Soft skills (separated from technical)
+  soft_skills: string[];
+  
+  // ✅ Experience (months + detailed entries)
+  experience_months_total: number; // ⚠️ CORRECT FIELD NAME
+  experience: Array<{
+    company?: string;
+    role: string;
+    duration?: string;
+    duration_months?: number;
+    start_date?: string;
+    end_date?: string;
+    type?: 'full-time' | 'internship' | 'training' | 'part-time' | string;
+    responsibilities?: string[];
+  }>;
+  
+  // ✅ Projects (with detailed entries)
+  projects: Array<{
+    title: string;
+    description: string;
+    tools_methods_used?: string[];
+    tech_stack?: string[];
+  }>;
+  
+  // ✅ Education
   education: Array<{
     degree: string;
+    field?: string;
     institution?: string;
     year?: string;
+    cgpa?: string;
+    start_date?: string;
+    end_date?: string;
   }>;
-  experience_months: number;
-  projects_count: number;
+  
+  // ✅ Certifications
+  certifications: Array<{
+    name: string;
+    issuer?: string;
+    date?: string;
+  }>;
+  
+  // Metadata
   resume_completeness_score: number;
+  
+  // Legacy compatibility
+  skills?: string[]; // For backward compatibility
+  projects_count?: number; // Computed from projects.length
+  experience_months?: number; // Alias for experience_months_total
+  cgpa?: number | null; // Extracted from education
 }
 
 /**
@@ -153,20 +205,25 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
     try {
       // Dynamically find project root and resolve script path
       const projectRoot = findProjectRoot();
-      const pythonScriptPath = path.join(
-        projectRoot,
-        "scripts",
-        "resume-parser",
-        "resume_parser.py"
+      const candidateScriptPaths = [
+        path.join(projectRoot, "python", "resume_parser.py"),
+        path.join(projectRoot, "scripts", "resume-parser", "resume_parser.py"),
+      ];
+
+      const pythonScriptPath = candidateScriptPaths.find((candidate) =>
+        fs.existsSync(candidate)
       );
 
-      console.log(`[Resume Parser] Looking for script at: ${pythonScriptPath}`);
+      console.log(
+        `[Resume Parser] Looking for script at: ${candidateScriptPaths.join(", ")}`
+      );
 
       // Check if the Python script exists
-      if (!fs.existsSync(pythonScriptPath)) {
+      if (!pythonScriptPath) {
         // Provide helpful debugging information
         const searchedLocations = [
-          pythonScriptPath,
+          ...candidateScriptPaths,
+          path.join(process.cwd(), "python", "resume_parser.py"),
           path.join(process.cwd(), "scripts", "resume-parser", "resume_parser.py"),
           path.join(process.cwd(), "..", "scripts", "resume-parser", "resume_parser.py"),
         ];
@@ -176,7 +233,7 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
           `Searched locations:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}\n\n` +
           `Project root detected: ${projectRoot}\n` +
           `Current working directory: ${process.cwd()}\n\n` +
-          `Ensure the resume_parser.py script exists at:\n${pythonScriptPath}`;
+          `Ensure the resume_parser.py script exists at one of:\n${searchedLocations.map(loc => `  - ${loc}`).join('\n')}`;
 
         return reject(new Error(errorMsg));
       }
@@ -216,18 +273,31 @@ function callPythonParser(filePath: string): Promise<ParsedResumeData> {
           // Parse the JSON output from Python script
           const result: ParsedResumeData = JSON.parse(stdout);
 
-          // Validate the result structure
+          // Validate the result structure (check for new format fields)
           if (
-            !result.skills ||
-            !result.education ||
-            typeof result.experience_months !== "number" ||
-            typeof result.projects_count !== "number" ||
+            !Array.isArray(result.technical_skills) ||
+            !Array.isArray(result.programming_languages) ||
+            !Array.isArray(result.education) ||
+            typeof result.experience_months_total !== "number" ||
             typeof result.resume_completeness_score !== "number"
           ) {
             return reject(
-              new Error("Invalid resume parser output format")
+              new Error("Invalid resume parser output format - missing required fields")
             );
           }
+          
+          // Add legacy compatibility fields
+          const allSkills = [
+            ...result.technical_skills,
+            ...result.programming_languages,
+            ...result.frameworks_libraries,
+            ...result.tools_platforms,
+            ...result.databases
+          ];
+          
+          result.skills = allSkills; // Legacy compatibility
+          result.projects_count = result.projects?.length || 0;
+          result.experience_months = result.experience_months_total;
 
           resolve(result);
         } catch (parseError) {

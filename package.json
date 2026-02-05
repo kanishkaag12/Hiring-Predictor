@@ -12,7 +12,11 @@
     "migrate": "node run-all-migrations.js",
     "db:push": "drizzle-kit push",
     "db:migrate": "node run-all-migrations.js",
-    "test:ingest": "tsx test-job-ingest.ts"
+    "test:ingest": "tsx test-job-ingest.ts",
+    "test:schema": "npx tsx server/test-job-schema-alignment.ts",
+    "test:ml-job": "npx tsx test-ml-job-fetch.ts",
+    "test:resume": "npx tsx test-resume-integration.ts",
+    "test:resume:standalone": "node --require ./preload-env.cjs ./dist/test-resume-predictions-standalone.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

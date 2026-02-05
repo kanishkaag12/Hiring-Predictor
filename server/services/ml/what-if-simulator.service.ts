@@ -27,10 +27,11 @@ export class WhatIfSimulatorService {
   static async simulate(
     userId: string,
     jobId: string,
-    scenario: WhatIfScenario
+    scenario: WhatIfScenario,
+    resumeId?: string
   ): Promise<WhatIfResult> {
     // Get baseline prediction
-    const baselinePrediction = await ShortlistProbabilityService.predict(userId, jobId);
+    const baselinePrediction = await ShortlistProbabilityService.predict(userId, jobId, resumeId);
 
     // Get candidate profile
     const candidateProfile = await ShortlistProbabilityService.fetchCandidateProfile(userId);
@@ -55,9 +56,9 @@ export class WhatIfSimulatorService {
       jobData
     );
 
-    // Calculate probabilities using WEIGHTED SUM (same as predict method)
-    const baselineProb = Math.max(0.05, Math.min(0.95, (0.3 * baselineStrength.score) + (0.7 * baselineMatch.score)));
-    const projectedProb = Math.max(0.05, Math.min(0.95, (0.3 * projectedStrength.score) + (0.7 * projectedMatch.score)));
+    // Calculate probabilities using WEIGHTED SUM (0.4 candidate + 0.6 job match)
+    const baselineProb = Math.max(0.05, Math.min(0.95, (0.4 * baselineStrength.score) + (0.6 * baselineMatch.score)));
+    const projectedProb = Math.max(0.05, Math.min(0.95, (0.4 * projectedStrength.score) + (0.6 * projectedMatch.score)));
 
     return {
       baselineShortlistProbability: Math.round(baselineProb * 100),
@@ -140,14 +141,15 @@ export class WhatIfSimulatorService {
    */
   static async getRecommendations(
     userId: string,
-    jobId: string
+    jobId: string,
+    resumeId?: string
   ): Promise<{
     topSkillsToLearn: string[];
     skillsToImprove: string[];
     estimatedImpact: number; // Percentage point improvement
   }> {
     // Get baseline prediction
-    const prediction = await ShortlistProbabilityService.predict(userId, jobId);
+    const prediction = await ShortlistProbabilityService.predict(userId, jobId, resumeId);
 
     // Get candidate profile and job
     const candidateProfile = await ShortlistProbabilityService.fetchCandidateProfile(userId);
@@ -167,7 +169,7 @@ export class WhatIfSimulatorService {
         addedSkills: [topSkillsToLearn[0]],
       };
 
-      const result = await this.simulate(userId, jobId, scenario);
+      const result = await this.simulate(userId, jobId, scenario, resumeId);
       estimatedImpact = result.probabilityDelta;
     }
 

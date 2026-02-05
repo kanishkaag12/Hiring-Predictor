@@ -514,6 +514,33 @@ export async function registerRoutes(
 
     try {
       // ====================
+      // 0. DELETE OLD RESUME DATA (ATOMIC FIX 1 & 2)
+      // ====================
+      console.log(`[Resume Upload] 🔥 ATOMIC REPLACE INITIATED for user ${userId}`);
+      
+      // DELETE ALL skills/projects/experience for this user
+      // This ensures old resume data doesn't pollute ML predictions
+      // NOTE: This clears ALL data (not just resume-derived), but that's OK
+      // Users can manually re-add any custom skills/projects they want to keep
+      try {
+        const deleteSkillsQuery = `DELETE FROM skills WHERE user_id = $1`;
+        const deleteProjectsQuery = `DELETE FROM projects WHERE user_id = $1`;
+        const deleteExperienceQuery = `DELETE FROM experience WHERE user_id = $1`;
+        
+        await Promise.all([
+          pool.query(deleteSkillsQuery, [userId]),
+          pool.query(deleteProjectsQuery, [userId]),
+          pool.query(deleteExperienceQuery, [userId])
+        ]);
+        
+        console.log(`[DB] ✅ Old resume data DELETED for user ${userId}`);
+        console.log(`[DB] 🔄 Ready for FRESH resume data insertion`);
+      } catch (deleteError) {
+        console.error(`[Resume Upload] ⚠️  Failed to delete old resume data:`, deleteError);
+        // Continue - this is not fatal, but log the error
+      }
+
+      // ====================
       // 1. IMPORT & INITIALIZE
       // ====================
       const { parseResume: parseResumeFunction } = await import("./services/resume-parser.service");
@@ -663,6 +690,42 @@ export async function registerRoutes(
           skills: parsedResume.skills.slice(0, 5),
           savedSkillsCount: Array.isArray(updated.resumeParsedSkills) ? updated.resumeParsedSkills.length : 0
         });
+
+        // ====================
+        // 4.5. PERSIST RESUME DATA TO DATABASE TABLES
+        // ====================
+        // This ensures ML system can build unified profile from DB
+        if (parsingStatus === "SUCCESS" || parsingStatus === "PARTIAL") {
+          try {
+            const { persistResumeData } = await import("./services/resume-persistence.service");
+            await persistResumeData(userId, parsedResume);
+            console.log(`[Resume Upload] ✅ Resume data persisted to database tables`);
+          } catch (persistError) {
+            console.error(`[Resume Upload] ⚠️  Failed to persist resume data to DB:`, persistError);
+            // Continue - data is still in users.resumeParsedSkills as fallback
+          }
+        }
+
+        // ====================
+        // 4.6. INVALIDATE ML CACHE (FIX 2 - CACHE INVALIDATION)
+        // ====================
+        // When resume changes, all predictions become stale
+        // Clear: shortlist probabilities, cached embeddings, cached scores
+        console.log(`[Resume Upload] 🔄 Invalidating ML cache for user ${userId}`);
+        try {
+          const { ShortlistPredictionStorage } = await import("./services/ml/shortlist-prediction-storage.service");
+          
+          // Delete all cached predictions for this user
+          // This forces fresh recomputation on next prediction request
+          const deletePredictionsQuery = `DELETE FROM shortlist_predictions WHERE user_id = $1`;
+          await pool.query(deletePredictionsQuery, [userId]);
+          
+          console.log(`[Resume Upload] ✅ ML prediction cache invalidated for user ${userId}`);
+          console.log(`[ML] 🔄 Next prediction will use fresh resume data + fresh job match computation`);
+        } catch (cacheError) {
+          console.warn(`[Resume Upload] ⚠️  Cache invalidation failed (non-critical):`, cacheError);
+          // This is non-critical - predictions will still work, just may use old cache
+        }
 
         // ====================
         // 5. CALCULATE ROLE MATCHES
